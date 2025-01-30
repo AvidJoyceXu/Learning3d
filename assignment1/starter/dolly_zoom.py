@@ -20,7 +20,7 @@ def dolly_zoom(
     num_frames=10,
     duration=3,
     device=None,
-    output_file="output/dolly.gif",
+    output_file="play/dolly.gif",
 ):
     if device is None:
         device = get_device()
@@ -34,8 +34,8 @@ def dolly_zoom(
 
     renders = []
     for fov in tqdm(fovs):
-        distance = 3  # TODO: change this.
-        T = [[0, 0, 3]]  # TODO: Change this.
+        distance = 3 / torch.tan(torch.deg2rad(fov / 2))  # Adjust distance based on fov
+        T = [[0, 0, distance]]  # Update camera translation based on distance
         cameras = pytorch3d.renderer.FoVPerspectiveCameras(fov=fov, T=T, device=device)
         rend = renderer(mesh, cameras=cameras, lights=lights)
         rend = rend[0, ..., :3].cpu().numpy()  # (N, H, W, 3)
@@ -47,14 +47,14 @@ def dolly_zoom(
         draw = ImageDraw.Draw(image)
         draw.text((20, 20), f"fov: {fovs[i]:.2f}", fill=(255, 0, 0))
         images.append(np.array(image))
-    imageio.mimsave(output_file, images, duration=duration)
+    imageio.mimsave(output_file, images, duration=duration, loop=0)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_frames", type=int, default=10)
-    parser.add_argument("--duration", type=float, default=3)
-    parser.add_argument("--output_file", type=str, default="images/dolly.gif")
+    parser.add_argument("--num_frames", type=int, default=30)
+    parser.add_argument("--duration", type=float, default=4)
+    parser.add_argument("--output_file", type=str, default="play/dolly.gif")
     parser.add_argument("--image_size", type=int, default=256)
     args = parser.parse_args()
     dolly_zoom(
