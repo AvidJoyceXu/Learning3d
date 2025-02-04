@@ -95,7 +95,7 @@ def unproject_depth_image(image, mask, depth, camera):
     device = camera.device
     assert image.shape[0] == image.shape[1], "Image must be square."
     image_shape = image.shape[0]
-    ndc_pixel_coordinates = torch.linspace(1, -1, image_shape)
+    ndc_pixel_coordinates = torch.linspace(1, -1, image_shape).to(device)
     Y, X = torch.meshgrid(ndc_pixel_coordinates, ndc_pixel_coordinates)
     xy_depth = torch.dstack([X, Y, depth])
     points = camera.unproject_points(

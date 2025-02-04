@@ -2,6 +2,8 @@
 Usage:
     python -m starter.camera_transforms --image_size 512
 """
+import sys
+sys.path.append('.')
 import argparse
 
 import matplotlib.pyplot as plt
@@ -17,18 +19,33 @@ def render_textured_cow(
     R_relative=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
     T_relative=[0, 0, 0],
     device=None,
+    output_path = "play/scene.png"
 ):
     if device is None:
         device = get_device()
     meshes = pytorch3d.io.load_objs_as_meshes([cow_path]).to(device)
     R_relative = torch.tensor(R_relative).float()
     T_relative = torch.tensor(T_relative).float()
-    R = R_relative @ torch.tensor([[1.0, 0, 0], [0, 1, 0], [0, 0, 1]])
-    T = R_relative @ torch.tensor([0.0, 0, 3]) + T_relative
+    R_0 = [[1.0, 0, 0], [0, 1, 0], [0, 0, 1]]
+    T_0 = [0.0, 0, 3]
+    R = R_relative @ torch.tensor(R_0)
+    T = R_relative @ torch.tensor(T_0) + T_relative
     renderer = get_mesh_renderer(image_size=256)
     cameras = pytorch3d.renderer.FoVPerspectiveCameras(
         R=R.unsqueeze(0), T=T.unsqueeze(0), device=device,
     )
+    # import plotly.graph_objects as go
+    from pytorch3d.vis.plotly_vis import plot_scene
+
+    fig = plot_scene({
+        "360-degree Renders": {
+            "Mesh": meshes,
+            "Cameras": cameras,
+        }
+    })
+    # fig.show()
+    fig.write_image(f"{output_path}_scene.jpg", width=800, height=800)
+
     lights = pytorch3d.renderer.PointLights(location=[[0, 0.0, -3.0]], device=device,)
     rend = renderer(meshes, cameras=cameras, lights=lights)
     return rend[0, ..., :3].cpu().numpy()
@@ -37,8 +54,30 @@ def render_textured_cow(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cow_path", type=str, default="data/cow.obj")
-    parser.add_argument("--image_size", type=int, default=256)
-    parser.add_argument("--output_path", type=str, default="images/textured_cow.jpg")
+    parser.add_argument("--image_size", type=int, default=512)
+    parser.add_argument("--output_path", type=str, default="play/textured_cow")
     args = parser.parse_args()
-    render_textured_cow(cow_path=args.cow_path, image_size=args.image_size)
-    plt.imsave(args.output_path, render_textured_cow())
+    R = []
+    T = []
+    # # Default Setting
+    # R.append([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    # T.append([0, 0, 0])
+    # # Case 1
+    # R.append([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+    # T.append([0, 0, 0])
+    # # Case 2
+    # R.append([[1, 0 , 0], [0, 1, 0], [0, 0, 1]])
+    # T.append([0, 0, 3])
+    # # Case 3
+    # R.append([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    # T.append([0.5, -0.5, 0])
+    # Case 4
+    R.append([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
+    T.append([3, 0, 0])
+
+    for i in range(len(R)):
+        image = render_textured_cow(cow_path=args.cow_path, image_size=args.image_size, \
+                        R_relative=R[i], T_relative=T[i], \
+                        output_path = f"play/x_case={i}")
+        plt.imsave(args.output_path + f"x_{i}.jpg", image)
+    

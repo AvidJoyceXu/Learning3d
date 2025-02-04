@@ -1,0 +1,45 @@
+# cube.mtl
+# Material definitions for cube.obj
+
+# Material: simple colored faces
+newmtl front_face
+Ka 0.2 0.2 0.2        
+Kd 1.0 0.0 0.0         
+Ks 0.2 0.2 0.2        
+Ns 10.0               
+d 1.0                 
+
+newmtl back_face
+Ka 0.2 0.2 0.2
+Kd 0.0 1.0 0.0        
+Ks 0.2 0.2 0.2
+Ns 10.0
+d 1.0
+
+newmtl right_face
+Ka 0.2 0.2 0.2
+Kd 0.0 0.0 1.0       
+Ks 0.2 0.2 0.2
+Ns 10.0
+d 1.0
+
+newmtl left_face
+Ka 0.2 0.2 0.2
+Kd 1.0 1.0 0.0        
+Ks 0.2 0.2 0.2
+Ns 10.0
+d 1.0
+
+newmtl top_face
+Ka 0.2 0.2 0.2
+Kd 1.0 0.0 1.0        
+Ks 0.2 0.2 0.2
+Ns 10.0
+d 1.0
+
+newmtl bottom_face
+Ka 0.2 0.2 0.2
+Kd 0.0 1.0 1.0       
+Ks 0.2 0.2 0.2
+Ns 10.0
+d 1.0
