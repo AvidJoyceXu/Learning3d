@@ -1,1 +1,0 @@
-python -m starter.render_generic --render torus_mesh --output_path play/5-rendering-pc/torus_mesh.gif

@@ -11,6 +11,7 @@ import pytorch3d
 import torch
 
 from starter.utils import get_device, get_mesh_renderer
+from pytorch3d.renderer import look_at_view_transform
 
 
 def render_textured_cow(
@@ -72,8 +73,9 @@ if __name__ == "__main__":
     # R.append([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
     # T.append([0.5, -0.5, 0])
     # Case 4
-    R.append([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
-    T.append([3, 0, 0])
+    # R.append([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
+    # T.append([3, 0, 0])
+    R, T = look_at_view_transform(eye=[[-3, 0, -5]])
 
     for i in range(len(R)):
         image = render_textured_cow(cow_path=args.cow_path, image_size=args.image_size, \

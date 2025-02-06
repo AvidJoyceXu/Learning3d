@@ -113,7 +113,7 @@ def unproject_depth_image(image, mask, depth, camera):
     return points, rgb
 
 
-def load_cow_mesh(path="data/cow_mesh.obj"):
+def load_cow_mesh(path="data/cow.obj"):
     """
     Loads vertices and faces from an obj file.
 
