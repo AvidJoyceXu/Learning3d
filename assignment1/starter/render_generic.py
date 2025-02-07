@@ -101,24 +101,23 @@ def render_torus(R=1, r=0.25, image_size=256, num_samples=200, device=None, num_
     points = torch.stack((x.flatten(), y.flatten(), z.flatten()), dim=1).to(device) \
             .unsqueeze(0)\
             .repeat(num_cameras, 1, 1)
-    print("points shape: ", points.shape)
     color = (points - points.min()) / (points.max() - points.min()).to(device) \
             .unsqueeze(0)\
             .repeat(num_cameras, 1, 1)
-    print("color shape: ", color.shape)
+    #print("color shape: ", color.shape)
     
     torus_point_cloud = pytorch3d.structures.Pointclouds(
         points=points, features=color,
     ).to(device)
 
     elevations, azimuths = generate_spiral_points(num_cameras)
-    print("elev: ", elevations.shape)
-    print("azim: ", azimuths.shape)
+    #print("elev: ", elevations.shape)
+    #print("azim: ", azimuths.shape)
     R, T = pytorch3d.renderer.look_at_view_transform(dist=3, elev=elevations, azim=azimuths,
                                                      at = torch.tensor([[0, 0, 0]]).to(device), 
                                                      # The parametric curve is defined on the original point
                                                      device=device)
-    print("R: ", R.shape)
+    #print("R: ", R.shape)
     cameras = pytorch3d.renderer.FoVPerspectiveCameras(
         R = R,
         T = T, 
@@ -126,7 +125,7 @@ def render_torus(R=1, r=0.25, image_size=256, num_samples=200, device=None, num_
     )
     renderer = get_points_renderer(image_size=image_size, device=device)
     rend = renderer(torus_point_cloud, cameras=cameras)
-    print("rend shape: ", rend.shape)
+    #print("rend shape: ", rend.shape)
     return rend[..., :3].cpu().numpy()
 
 def render_klein_bottle(r=1, image_size=256, num_samples=200, num_cameras=100, device=None):
@@ -147,24 +146,24 @@ def render_klein_bottle(r=1, image_size=256, num_samples=200, num_cameras=100, d
     points = torch.stack((x.flatten(), y.flatten(), z.flatten()), dim=1).to(device) \
             .unsqueeze(0)\
             .repeat(num_cameras, 1, 1)
-    print("points shape: ", points.shape)
+    #print("points shape: ", points.shape)
     color = (points - points.min()) / (points.max() - points.min()).to(device) \
             .unsqueeze(0)\
             .repeat(num_cameras, 1, 1)
-    print("color shape: ", color.shape)
+    #print("color shape: ", color.shape)
     
     point_cloud = pytorch3d.structures.Pointclouds(
         points=points, features=color,
     ).to(device)
 
     elevations, azimuths = generate_spiral_points(num_cameras)
-    print("elev: ", elevations.shape)
-    print("azim: ", azimuths.shape)
+    #print("elev: ", elevations.shape)
+    #print("azim: ", azimuths.shape)
     R, T = pytorch3d.renderer.look_at_view_transform(dist=10, elev=elevations, azim=azimuths,
                                                      at = torch.tensor([[0, 0, 0]]).to(device), 
                                                      # The parametric curve is defined on the original point
                                                      device=device)
-    print("R: ", R.shape)
+    #print("R: ", R.shape)
     cameras = pytorch3d.renderer.FoVPerspectiveCameras(
         R = R,
         T = T, 
@@ -172,7 +171,7 @@ def render_klein_bottle(r=1, image_size=256, num_samples=200, num_cameras=100, d
     )
     renderer = get_points_renderer(image_size=image_size, device=device)
     rend = renderer(point_cloud, cameras=cameras)
-    print("rend shape: ", rend.shape)
+    #print("rend shape: ", rend.shape)
     return rend[..., :3].cpu().numpy()
 
 def render_sphere_mesh(image_size=256, voxel_size=64, device=None):

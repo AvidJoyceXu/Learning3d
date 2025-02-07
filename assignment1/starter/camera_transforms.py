@@ -67,5 +67,5 @@ if __name__ == "__main__":
     for i in range(len(R)):
         image = render_textured_cow(cow_path=args.cow_path, image_size=args.image_size, \
                         R_relative=R[i], T_relative=T[i])
-        plt.imsave(f"play/x_{i}.jpg", image)
+        plt.imsave(f"play/4-camera-transformations/x_{i}.jpg", image)
     

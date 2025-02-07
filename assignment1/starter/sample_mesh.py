@@ -38,7 +38,7 @@ def sample_pc_from_mesh(faces, vertices, num_samples):
     3. Compute the corresponding point using baricentric coordinates on the selected face.
     '''
     areas = calculate_face_areas(faces, vertices)
-    print(areas.shape)
+    #print(areas.shape)
     probabilities = areas / areas.sum()
 
     def sample_barycentric_coordinates():
@@ -62,7 +62,7 @@ def sample_pc_from_mesh(faces, vertices, num_samples):
 
 set_seed()
 vertices, faces = load_cow_mesh()
-print("Number of faces: ", faces.shape)
+#print("Number of faces: ", faces.shape)
 num_sample_list = [10, 100, 1000, 10000]
 
 num_cameras = 100
@@ -75,14 +75,14 @@ for num_samples in num_sample_list:
 
     cow_pc = pytorch3d.structures.Pointclouds(points=[points], features=[color]).to(device)
     R, T = pytorch3d.renderer.look_at_view_transform(dist=3, elev=elevations, azim=azimuths, device=device)
-    print("R shape: ", R.shape)
-    print("T shape: ", T.shape)
+    #print("R shape: ", R.shape)
+    #print("T shape: ", T.shape)
     cameras = pytorch3d.renderer.FoVPerspectiveCameras(R=R, T=T, device=device)
 
     renderer = get_points_renderer(image_size=256, device=device)
 
     rend = renderer(cow_pc.extend(num_cameras), cameras=cameras)
-    print("rend shape: ", rend.shape)
+    #print("rend shape: ", rend.shape)
     rend = rend[..., :3].cpu().numpy()
 
     images = ((rend * 255).astype(np.uint8))

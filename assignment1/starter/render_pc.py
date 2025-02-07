@@ -7,10 +7,10 @@ from starter.utils import get_device
 import torch, numpy as np
 import pytorch3d
 device = get_device()
-print(device)
+#print(device)
 
 data = load_rgbd_data()
-print(data.keys())
+#print(data.keys())
 rgbs = [data['rgb1'], data['rgb2']]
 rgbs = [torch.from_numpy(rgb).to(device) for rgb in rgbs]
 masks = [data['mask1'], data['mask2']]
@@ -19,10 +19,10 @@ depth = [data['depth1'], data['depth2']]
 depth = [torch.from_numpy(depth).to(device) for depth in depth]
 cameras = [data['cameras1'], data['cameras2']]
 cameras = [camera.to(device) for camera in cameras]
-# print(cameras[0]) # PerspectiveCameras()
-# print(rgbs[0].shape) # (800, 800, 3)
-# print(masks[0].shape) # (800, 800)
-# print(depth[0].shape) # (800, 800)
+# #print(cameras[0]) # PerspectiveCameras()
+# #print(rgbs[0].shape) # (800, 800, 3)
+# #print(masks[0].shape) # (800, 800)
+# #print(depth[0].shape) # (800, 800)
 
 num_views = 12
 def wrapper_unproject_depth_image(depth, camera, mask, image, repeat=1):
@@ -35,7 +35,7 @@ from pytorch3d.renderer import look_at_view_transform
 from starter.utils import get_points_renderer
 
 def render_pc_from_points(points, features):
-    print(points.shape, features.shape) # [B, N, 3], [B, N, 3]
+    #print(points.shape, features.shape) # [B, N, 3], [B, N, 3]
     point_cloud = pytorch3d.structures.Pointclouds(points=points, features=features)
     points_renderer = get_points_renderer(
         image_size=256, 
@@ -49,10 +49,10 @@ def render_pc_from_points(points, features):
         device=device
     )
     rend = points_renderer(point_cloud, cameras=pc_cameras)
-    # print(rend.shape) # [B, S, S, 3]
+    # #print(rend.shape) # [B, S, S, 3]
     image_list = rend[..., :3].cpu().numpy()
     images = (image_list*255).astype(np.uint8)
-    # print(image_list.shape)
+    # #print(image_list.shape)
     return np.flip(images, axis=1)
 
 import imageio

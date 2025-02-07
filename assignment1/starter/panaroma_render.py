@@ -43,7 +43,7 @@ def generate_spiral_points(n_points=100, top=90, bottom=-90):
     
     return elevations, azimuths
     
-def render_mesh_panaroma(meshes, top=90, bottom=-90, output_path='play/loop-circle-cameras-new.gif'):
+def render_mesh_panaroma(meshes, top=90, bottom=-90, output_path='play/1-practicing-cameras/1.1-360d-renders/loop-circle-cameras-new.gif'):
     num_cameras = 100
     elevations, azimuths = generate_spiral_points(num_cameras, top=top, bottom=bottom)
     # Get camera positions using look_at_view_transform
@@ -76,6 +76,7 @@ def render_mesh_panaroma(meshes, top=90, bottom=-90, output_path='play/loop-circ
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Render a 3D mesh from different camera angles.')
     parser.add_argument('--mesh_path', type=str, required=True, help='Path to the 3D mesh file')
+    parser.add_argument('--output_path', type=str, default='play/1-practicing-cameras/1.1-360d-renders/loop-circle-cameras-new.gif', help='Path to save the output GIF file')
     args = parser.parse_args()
 
     vertices, faces, _ = load_obj(args.mesh_path)
@@ -91,4 +92,4 @@ if __name__ == "__main__":
         faces=faces,
         textures=textures,
     )
-    render_mesh_panaroma(meshes)
+    render_mesh_panaroma(meshes, output_path=args.output_path)

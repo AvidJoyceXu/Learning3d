@@ -20,7 +20,7 @@ def dolly_zoom(
     num_frames=10,
     duration=3,
     device=None,
-    output_file="play/dolly.gif",
+    output_file="play/1-practicing-cameras/1.2-recreating-dolly-zoom/dolly.gif",
 ):
     if device is None:
         device = get_device()
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_frames", type=int, default=30)
     parser.add_argument("--duration", type=float, default=4)
-    parser.add_argument("--output_file", type=str, default="play/dolly.gif")
+    parser.add_argument("--output_file", type=str, default="play/1-practicing-cameras/1.2-recreating-dolly-zoom/dolly.gif")
     parser.add_argument("--image_size", type=int, default=256)
     args = parser.parse_args()
     dolly_zoom(

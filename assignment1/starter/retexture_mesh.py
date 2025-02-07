@@ -12,8 +12,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 obj_filename = "data/cow.obj"
 mesh = load_objs_as_meshes([obj_filename], device=device)
 
-# Print the mesh to verify
-print(mesh)
+# #print the mesh to verify
+#print(mesh)
 
 import torch
 
@@ -41,8 +41,8 @@ textures = Textures(verts_rgb=colors[None])
 # Assign textures to the mesh
 mesh.textures = textures
 
-# Print the textures to verify
-print(mesh.textures)
+# #print the textures to verify
+#print(mesh.textures)
 
 from starter.utils import get_mesh_renderer
 
@@ -72,4 +72,5 @@ image = images[0, ..., :3].cpu().numpy()
 plt.imshow(image)
 plt.imsave("play/3-retexturing-mesh/retextured.jpg", image)
 
-
+from starter.panaroma_render import render_mesh_panaroma
+render_mesh_panaroma(mesh, output_path='play/3-retexturing-mesh/panaroma.gif')
