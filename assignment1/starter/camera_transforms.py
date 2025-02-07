@@ -20,7 +20,6 @@ def render_textured_cow(
     R_relative=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
     T_relative=[0, 0, 0],
     device=None,
-    output_path = "play/scene.png"
 ):
     if device is None:
         device = get_device()
@@ -35,17 +34,6 @@ def render_textured_cow(
     cameras = pytorch3d.renderer.FoVPerspectiveCameras(
         R=R.unsqueeze(0), T=T.unsqueeze(0), device=device,
     )
-    # import plotly.graph_objects as go
-    from pytorch3d.vis.plotly_vis import plot_scene
-
-    fig = plot_scene({
-        "360-degree Renders": {
-            "Mesh": meshes,
-            "Cameras": cameras,
-        }
-    })
-    # fig.show()
-    fig.write_image(f"{output_path}_scene.jpg", width=800, height=800)
 
     lights = pytorch3d.renderer.PointLights(location=[[0, 0.0, -3.0]], device=device,)
     rend = renderer(meshes, cameras=cameras, lights=lights)
@@ -60,26 +48,24 @@ if __name__ == "__main__":
     args = parser.parse_args()
     R = []
     T = []
-    # # Default Setting
-    # R.append([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    # T.append([0, 0, 0])
-    # # Case 1
-    # R.append([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
-    # T.append([0, 0, 0])
-    # # Case 2
-    # R.append([[1, 0 , 0], [0, 1, 0], [0, 0, 1]])
-    # T.append([0, 0, 3])
-    # # Case 3
-    # R.append([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    # T.append([0.5, -0.5, 0])
+    # Default Setting
+    R.append([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    T.append([0, 0, 0])
+    # Case 1
+    R.append([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+    T.append([0, 0, 0])
+    # Case 2
+    R.append([[1, 0 , 0], [0, 1, 0], [0, 0, 1]])
+    T.append([0, 0, 3])
+    # Case 3
+    R.append([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    T.append([0.5, -0.5, 0])
     # Case 4
-    # R.append([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
-    # T.append([3, 0, 0])
-    R, T = look_at_view_transform(eye=[[-3, 0, -5]])
+    R.append([[0, 0, 1], [0, 1.0, 0], [-1.0, 0, 0]]) 
+    T.append([-3, 0, 3.0])
 
     for i in range(len(R)):
         image = render_textured_cow(cow_path=args.cow_path, image_size=args.image_size, \
-                        R_relative=R[i], T_relative=T[i], \
-                        output_path = f"play/x_case={i}")
-        plt.imsave(args.output_path + f"x_{i}.jpg", image)
+                        R_relative=R[i], T_relative=T[i])
+        plt.imsave(f"play/x_{i}.jpg", image)
     

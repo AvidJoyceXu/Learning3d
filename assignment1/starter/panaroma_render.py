@@ -24,7 +24,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 import argparse
 
-def generate_spiral_points(n_points=100):
+def generate_spiral_points(n_points=100, top=90, bottom=-90):
     """
     Generate points on a sphere in a continuous spiral pattern from top to bottom.
     
@@ -36,16 +36,16 @@ def generate_spiral_points(n_points=100):
     """
 
     # Generate points from top to bottom (90° to -90°)
-    elevations = torch.linspace(90, -90, n_points)
+    elevations = torch.linspace(top, bottom, n_points)
 
     azimuth_step = 360.0 / (n_points / 4)  # base step
     azimuths = (torch.arange(n_points) * azimuth_step) % 360
     
     return elevations, azimuths
     
-def main(meshes):
+def render_mesh_panaroma(meshes, top=90, bottom=-90, output_path='play/loop-circle-cameras-new.gif'):
     num_cameras = 100
-    elevations, azimuths = generate_spiral_points(num_cameras)
+    elevations, azimuths = generate_spiral_points(num_cameras, top=top, bottom=bottom)
     # Get camera positions using look_at_view_transform
     R, T = look_at_view_transform(
         dist=3,
@@ -71,7 +71,7 @@ def main(meshes):
     images = [(image*255).astype(np.uint8) for image in images]
 
     duration = 0.00005  # Convert FPS (frames per second) to duration (ms per frame)
-    imageio.mimsave('play/loop-circle-cameras-new.gif', images, duration=duration, loop=0)
+    imageio.mimsave(output_path, images, duration=duration, loop=0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Render a 3D mesh from different camera angles.')
@@ -91,4 +91,4 @@ if __name__ == "__main__":
         faces=faces,
         textures=textures,
     )
-    main(meshes)
+    render_mesh_panaroma(meshes)
