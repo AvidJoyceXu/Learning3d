@@ -5,6 +5,8 @@ python starter/360d-render.py --mesh_path data/MyMeshes/cube.obj
 
 import sys
 sys.path.append('.')
+sys.path.append('..')
+sys.path.append('assignment1')
 from pytorch3d.renderer import look_at_view_transform
 from pytorch3d.io import load_obj
 import torch
@@ -43,12 +45,12 @@ def generate_spiral_points(n_points=100, top=90, bottom=-90):
     
     return elevations, azimuths
     
-def render_mesh_panaroma(meshes, top=90, bottom=-90, output_path='play/1-practicing-cameras/1.1-360d-renders/loop-circle-cameras-new.gif'):
+def render_mesh_panaroma(meshes, top=90, bottom=-90, dist=3, output_path='play/1-practicing-cameras/1.1-360d-renders/loop-circle-cameras-new.gif'):
     num_cameras = 100
     elevations, azimuths = generate_spiral_points(num_cameras, top=top, bottom=bottom)
     # Get camera positions using look_at_view_transform
     R, T = look_at_view_transform(
-        dist=3,
+        dist=dist,
         elev=elevations,
         azim=azimuths,
         device=device

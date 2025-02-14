@@ -83,6 +83,7 @@ def fit_pointcloud(pointclouds_src, pointclouds_tgt, args):
         print("[%4d/%4d]; ttime: %.0f (%.2f); loss: %.3f" % (step, args.max_iter, total_time,  iter_time, loss_vis))
     
     print('Done!')
+    return pointclouds_src, pointclouds_tgt
 
 
 def fit_voxel(voxels_src, voxels_tgt, args):
@@ -106,11 +107,12 @@ def fit_voxel(voxels_src, voxels_tgt, args):
         print("[%4d/%4d]; ttime: %.0f (%.2f); loss: %.3f" % (step, args.max_iter, total_time,  iter_time, loss_vis))
     
     print('Done!')
+    return voxels_src, voxels_tgt
 
 
 def train_model(args):
     r2n2_dataset = R2N2("train", dataset_location.SHAPENET_PATH, dataset_location.R2N2_PATH, dataset_location.SPLITS_PATH, return_voxels=True)
-
+    print()
     
     feed = r2n2_dataset[0]
 
@@ -128,7 +130,7 @@ def train_model(args):
         voxels_tgt = feed_cuda['voxels']
 
         # fitting
-        fit_voxel(voxels_src, voxels_tgt, args)
+        return fit_voxel(voxels_src, voxels_tgt, args)
 
 
     elif args.type == "point":
@@ -138,7 +140,7 @@ def train_model(args):
         pointclouds_tgt = sample_points_from_meshes(mesh_tgt, args.n_points)
 
         # fitting
-        fit_pointcloud(pointclouds_src, pointclouds_tgt, args)        
+        return fit_pointcloud(pointclouds_src, pointclouds_tgt, args)        
     
     elif args.type == "mesh":
         # initialization
@@ -157,4 +159,16 @@ def train_model(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Model Fit', parents=[get_args_parser()])
     args = parser.parse_args()
-    train_model(args)
+    visualize_func_dict = {}
+    from visualize_utils import render_volume, render_pointcloud, render_mesh
+    visualize_func_dict["vox"] = render_volume
+    visualize_func_dict["point"] = render_pointcloud
+    visualize_func_dict["mesh"] = render_mesh
+
+    src, tgt = train_model(args)
+
+    visualize_func = visualize_func_dict[args.type]
+    visualize_func(src, output=f"assignment2/1-{args.type}-src-new.gif")
+    visualize_func(tgt, output=f"assignment2/1-{args.type}-tgt-new.gif")
+
+    
