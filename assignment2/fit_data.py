@@ -10,11 +10,6 @@ from pytorch3d.structures import Meshes
 import dataset_location
 import torch
 
-
-
-
-
-
 def get_args_parser():
     parser = argparse.ArgumentParser('Model Fit', add_help=False)
     parser.add_argument('--lr', default=4e-4, type=float)
@@ -36,6 +31,7 @@ def fit_mesh(mesh_src, mesh_tgt, args):
     for step in range(start_iter, args.max_iter):
         iter_start_time = time.time()
 
+        # NOTE: [Out-of-place-operation]: Create a new mesh with the offset vertices
         new_mesh_src = mesh_src.offset_verts(deform_vertices_src)
 
         sample_trg = sample_points_from_meshes(mesh_tgt, args.n_points)
@@ -57,9 +53,11 @@ def fit_mesh(mesh_src, mesh_tgt, args):
 
         print("[%4d/%4d]; ttime: %.0f (%.2f); loss: %.3f" % (step, args.max_iter, total_time,  iter_time, loss_vis))        
     
+    # [Inplace-operation]: Adjust the position of vertices and keep the mesh
     mesh_src.offset_verts_(deform_vertices_src)
 
     print('Done!')
+    return mesh_src, mesh_tgt
 
 
 def fit_pointcloud(pointclouds_src, pointclouds_tgt, args):
@@ -149,7 +147,7 @@ def train_model(args):
         mesh_tgt = Meshes(verts=[feed_cuda['verts']], faces=[feed_cuda['faces']])
 
         # fitting
-        fit_mesh(mesh_src, mesh_tgt, args)        
+        return fit_mesh(mesh_src, mesh_tgt, args)        
 
 
     

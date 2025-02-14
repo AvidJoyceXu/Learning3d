@@ -5,3 +5,7 @@ python assignment2/fit_data.py --max_iter 50000
 
 echo "1.2. Fitting a poinc cloud"
 python assignment2/fit_data.py --max_iter 10000 --type point
+
+echo "1.3. Fitting a mesh"
+python assignment2/fit_data.py --max_iter 6000 --type mesh
+

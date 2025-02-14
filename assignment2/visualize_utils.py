@@ -21,6 +21,18 @@ device = get_device()
 def to_numpy(tensor)->np.ndarray:
     return tensor.detach().cpu().numpy()
 
+def render_mesh_util(vertices, triangles, output, dist=32):
+        '''
+        Given vertices and triangles, render the 3D mesh.
+        '''
+        # Create a Meshes object
+        print("Render dist: ", dist)
+        vertices = torch.tensor(vertices, device=device, dtype=torch.float32)
+        faces = torch.tensor(triangles, device=device, dtype=torch.int32)
+        mesh = Meshes(verts=[vertices], faces=[faces], textures=TexturesVertex(verts_features=torch.ones_like(vertices)[None]))
+        # ipdb.set_trace()
+        render_mesh_panaroma(mesh, dist=dist, output_path=output)
+
 def render_volume(voxel_grid, output):
     def voxel2mesh(voxel_grid):
         '''
@@ -37,22 +49,19 @@ def render_volume(voxel_grid, output):
         vertices -= vertices.mean(axis=0) # Move to center
         triangles = triangles.astype(np.int64)
         return vertices, triangles
-    
-    def render_mesh(vertices, triangles):
-        '''
-        Given vertices and triangles, render the 3D mesh.
-        '''
-        # Create a Meshes object
-        vertices = torch.tensor(vertices, device=device, dtype=torch.float32)
-        faces = torch.tensor(triangles, device=device, dtype=torch.int32)
-        mesh = Meshes(verts=[vertices], faces=[faces], textures=TexturesVertex(verts_features=torch.ones_like(vertices)[None]))
-        # ipdb.set_trace()
-        render_mesh_panaroma(mesh, dist=32, output_path=output)
 
-    return render_mesh(*voxel2mesh(voxel_grid))
+
+    return render_mesh_util(*voxel2mesh(voxel_grid), output=output, dist=32)
 
 def render_mesh(mesh, output):
-    raise NotImplementedError
+    '''
+    - input
+        - mesh: pytorch3d.structures.meshes.Meshes
+    '''
+    # ipdb.set_trace()
+    vertices = mesh.verts_packed()
+    faces = mesh.faces_packed()
+    return render_mesh_util(to_numpy(vertices), to_numpy(faces), output=output, dist=1)
 
 def render_pointcloud(points: torch.tensor, output, dist=0.8, num_views=12):
     '''
