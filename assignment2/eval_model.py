@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter("ignore", UserWarning)
+
 import argparse
 import time
 import torch
@@ -14,6 +17,16 @@ import matplotlib.pyplot as plt
 from pytorch3d.transforms import Rotate, axis_angle_to_matrix
 import math
 import numpy as np
+from visualize_utils import to_numpy, render_pointcloud
+
+from assignment1.starter.utils import get_device
+
+device = get_device()
+visualize_func_dict = {}
+from visualize_utils import render_volume, render_pointcloud, render_mesh
+visualize_func_dict["vox"] = render_volume
+visualize_func_dict["point"] = render_pointcloud
+visualize_func_dict["mesh"] = render_mesh
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Singleto3D', add_help=False)
@@ -88,8 +101,11 @@ def compute_sampling_metrics(pred_points, gt_points, thresholds, eps=1e-8):
 def evaluate(predictions, mesh_gt, thresholds, args):
     if args.type == "vox":
         voxels_src = predictions
+        print("prediction shape", predictions.shape)
         H,W,D = voxels_src.shape[2:]
         vertices_src, faces_src = mcubes.marching_cubes(voxels_src.detach().cpu().squeeze().numpy(), isovalue=0.5)
+        if len(vertices_src) == 0:
+            return None
         vertices_src = torch.tensor(vertices_src).float()
         faces_src = torch.tensor(faces_src.astype(int))
         mesh_src = pytorch3d.structures.Meshes([vertices_src], [faces_src])
@@ -108,12 +124,13 @@ def evaluate(predictions, mesh_gt, thresholds, args):
     elif args.type == "mesh":
         pred_points = sample_points_from_meshes(predictions, args.n_points).cpu()
 
+    # NOTE: number of mesh vertices - print("Original number of points: ", mesh_gt.verts_packed().shape)
     gt_points = sample_points_from_meshes(mesh_gt, args.n_points)
+    # NOTE: args.n_points - print("Sampled number of points: ", gt_points.shape[1])
     if args.type == "vox":
         gt_points = gt_points - gt_points.mean(1, keepdim=True)
     metrics = compute_sampling_metrics(pred_points, gt_points, thresholds)
     return metrics
-
 
 
 def evaluate_model(args):
@@ -143,7 +160,7 @@ def evaluate_model(args):
     avg_r_score = []
 
     if args.load_checkpoint:
-        checkpoint = torch.load(f'checkpoint_{args.type}.pth')
+        checkpoint = torch.load(f'checkpoint_{args.type}_{args.n_points}_1000.pth')
         model.load_state_dict(checkpoint['model_state_dict'])
         print(f"Succesfully loaded iter {start_iter}")
     
@@ -164,13 +181,10 @@ def evaluate_model(args):
 
         metrics = evaluate(predictions, mesh_gt, thresholds, args)
 
-        # TODO:
-        # if (step % args.vis_freq) == 0:
-        #     # visualization block
-        #     #  rend = 
-        #     plt.imsave(f'vis/{step}_{args.type}.png', rend)
-      
-
+        if metrics is None:
+            print("Skipping evaluation for step %d" % step)
+            continue
+        
         total_time = time.time() - start_time
         iter_time = time.time() - iter_start_time
 
@@ -182,6 +196,17 @@ def evaluate_model(args):
 
         print("[%4d/%4d]; ttime: %.0f (%.2f, %.2f); F1@0.05: %.3f; Avg F1@0.05: %.3f" % (step, max_iter, total_time, read_time, iter_time, f1_05, torch.tensor(avg_f1_score_05).mean()))
     
+        # TODO:
+        # if (step % args.vis_freq) == 0:
+        if f1_05 > 90: # NOTE: Only render images with F1@0.05 > 70
+            print("Rendering images for step %d" % step)
+            # visualization block
+            # NOTE: Save the gt image
+            plt.imsave(f'assignment2/output/2-reconstructing-3d/{args.type}/{step}_gt.png', to_numpy(images_gt.squeeze(1))[0], cmap='gray')
+            # NOTE: Use **predictions** for visualization.
+            visualize_func_dict[args.type](predictions, output=f'assignment2/output/2-reconstructing-3d/{args.type}/{step}_pred.gif')
+            # NOTE: Use **mesh_gt** for visualization.
+            render_mesh(mesh_gt, output=f'assignment2/output/2-reconstructing-3d/{args.type}/{step}_gt_mesh.gif')
 
     avg_f1_score = torch.stack(avg_f1_score).mean(0)
 

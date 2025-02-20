@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter("ignore", UserWarning)
+
 import argparse
 import time
 
@@ -9,7 +12,13 @@ from pytorch3d.datasets.r2n2.utils import collate_batched_R2N2
 from pytorch3d.ops import sample_points_from_meshes
 from r2n2_custom import R2N2
 
-
+def set_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+ 
 def get_args_parser():
     parser = argparse.ArgumentParser("Singleto3D", add_help=False)
     # Model parameters
@@ -35,6 +44,7 @@ def preprocess(feed_dict, args):
     images = feed_dict["images"].squeeze(1)
     if args.type == "vox":
         voxels = feed_dict["voxels"].float()
+        assert not torch.all(voxels==0), "Warning: zero input"
         ground_truth_3d = voxels
     elif args.type == "point":
         mesh = feed_dict["mesh"]
@@ -53,6 +63,8 @@ def calculate_loss(predictions, ground_truth, args):
     if args.type == "vox":
         loss = losses.voxel_loss(predictions, ground_truth)
     elif args.type == "point":
+        # NOTE: gt pc -> [-1, 1] 
+        # print("data boundary for ground truth sampled points: ", ground_truth.min(), ground_truth.max())
         loss = losses.chamfer_loss(predictions, ground_truth)
     elif args.type == "mesh":
         sample_trg = sample_points_from_meshes(ground_truth, args.n_points)
@@ -87,11 +99,13 @@ def train_model(args):
     train_loader = iter(loader)
 
     model = SingleViewto3D(args)
+    model.init_weights()
     model.to(args.device)
     model.train()
 
     # ============ preparing optimizer ... ============
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)  # to use with ViTs
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.max_iter)
     start_iter = 0
     start_time = time.time()
 
@@ -119,10 +133,11 @@ def train_model(args):
         prediction_3d = model(images_gt, args)
 
         loss = calculate_loss(prediction_3d, ground_truth_3d, args)
-
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        # NOTE: update learning rate
+        scheduler.step()
 
         total_time = time.time() - start_time
         iter_time = time.time() - iter_start_time
@@ -137,12 +152,12 @@ def train_model(args):
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                 },
-                f"checkpoint_{args.type}.pth",
+                f"checkpoint_{args.type}_{args.n_points}_{step}.pth",
             )
 
         print(
-            "[%4d/%4d]; ttime: %.0f (%.2f, %.2f); loss: %.3f"
-            % (step, args.max_iter, total_time, read_time, iter_time, loss_vis)
+            "[%4d/%4d]; ttime: %.0f (%.2f, %.2f); loss: %.3f; lr: %.5f"
+            % (step, args.max_iter, total_time, read_time, iter_time, loss_vis, optimizer.param_groups[0]["lr"])
         )
 
     print("Done!")
@@ -151,4 +166,5 @@ def train_model(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Singleto3D", parents=[get_args_parser()])
     args = parser.parse_args()
+    set_seed(23)
     train_model(args)

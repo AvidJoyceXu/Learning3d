@@ -17,23 +17,36 @@ from pytorch3d.renderer import TexturesVertex
 from pytorch3d.renderer.cameras import look_at_view_transform
 import pytorch3d
 
+import pytorch3d.ops.cubify as cubify
+
 device = get_device()
 def to_numpy(tensor)->np.ndarray:
     return tensor.detach().cpu().numpy()
 
-def render_mesh_util(vertices, triangles, output, dist=32):
-        '''
-        Given vertices and triangles, render the 3D mesh.
-        '''
-        # Create a Meshes object
-        print("Render dist: ", dist)
+def render_mesh_util(vertices=None, triangles=None, output='', mesh=None, dist=32):
+    '''
+    Given vertices and triangles, render the 3D mesh.
+    '''
+    # Create a Meshes object
+    if mesh is None:
+        assert vertices is not None and triangles is not None, "Either mesh or vertices and triangles should be provided."
         vertices = torch.tensor(vertices, device=device, dtype=torch.float32)
         faces = torch.tensor(triangles, device=device, dtype=torch.int32)
         mesh = Meshes(verts=[vertices], faces=[faces], textures=TexturesVertex(verts_features=torch.ones_like(vertices)[None]))
-        # ipdb.set_trace()
-        render_mesh_panaroma(mesh, dist=dist, output_path=output)
+    # ipdb.set_trace()
+    render_mesh_panaroma(mesh, dist=dist, output_path=output)
 
-def render_volume(voxel_grid, output):
+def render_volume(voxel_grid, output, dist=32):
+    def cubify_voxel(voxel_grid):
+        '''
+        [B, 1, D, H, W]
+        '''
+        voxel_grid = voxel_grid[:, 0] # [B, D, H, W]
+        B = voxel_grid.shape[0]
+        mesh = pytorch3d.ops.cubify(voxel_grid, 0.5)
+        mesh.textures = TexturesVertex(verts_features=torch.ones_like(mesh.verts_packed()).unsqueeze(0).repeat(B, 1, 1)) # [B, V, C]
+        return mesh
+         
     def voxel2mesh(voxel_grid):
         '''
         Given a voxel grid, return a mesh using marching cubes algorithm.
@@ -50,8 +63,10 @@ def render_volume(voxel_grid, output):
         triangles = triangles.astype(np.int64)
         return vertices, triangles
 
-
-    return render_mesh_util(*voxel2mesh(voxel_grid), output=output, dist=32)
+    # NOTE: using mcube
+    # return render_mesh_util(*voxel2mesh(voxel_grid), output=output, dist=32)
+    # NOTE: using cubify
+    return render_mesh_util(mesh=cubify_voxel(voxel_grid), output=output, dist=dist)
 
 def render_mesh(mesh, output):
     '''
@@ -99,5 +114,3 @@ def render_pointcloud(points: torch.tensor, output, dist=0.8, num_views=12):
     # #print(image_list.shape)
     duration = 0.00005  # Convert FPS (frames per second) to duration (ms per frame)
     imageio.mimsave(output, images, duration=duration, loop=0)
-
-
