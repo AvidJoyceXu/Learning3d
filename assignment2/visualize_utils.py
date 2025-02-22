@@ -36,12 +36,13 @@ def render_mesh_util(vertices=None, triangles=None, output='', mesh=None, dist=3
     # ipdb.set_trace()
     render_mesh_panaroma(mesh, dist=dist, output_path=output)
 
-def render_volume(voxel_grid, output, dist=32):
+def render_volume(voxel_grid, output, dist=3):
     def cubify_voxel(voxel_grid):
         '''
         [B, 1, D, H, W]
         '''
-        voxel_grid = voxel_grid[:, 0] # [B, D, H, W]
+        if len(voxel_grid.shape) == 5:
+            voxel_grid = voxel_grid[:, 0] # [B, D, H, W]
         B = voxel_grid.shape[0]
         mesh = pytorch3d.ops.cubify(voxel_grid, 0.5)
         mesh.textures = TexturesVertex(verts_features=torch.ones_like(mesh.verts_packed()).unsqueeze(0).repeat(B, 1, 1)) # [B, V, C]
