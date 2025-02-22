@@ -58,6 +58,7 @@ class SingleViewto3D(nn.Module):
             
             # Final layer to get binary voxel predictions
             final_conv = nn.Conv3d(64, 1, kernel_size=3, padding=1)
+            
             self.decoder = nn.Sequential( # Input: [b, 512]
                 deconv1, # [b, 256, 8, 8, 8]
                 deconv2, # [b, 128, 16, 16, 16]
@@ -152,4 +153,3 @@ class SingleViewto3D(nn.Module):
             # print(deform_vertices_pred.reshape([-1,3]).shape)
             mesh_pred = self.mesh_pred.offset_verts(deform_vertices_pred.reshape([-1,3]))
             return mesh_pred         
-

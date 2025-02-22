@@ -12,6 +12,12 @@ from pytorch3d.datasets.r2n2.utils import collate_batched_R2N2
 from pytorch3d.ops import sample_points_from_meshes
 from r2n2_custom import R2N2
 
+####### 3.1 Volumetric Network ########
+############## Start #################
+from occupancy_network import OccupancyNetwork, train_step, create_target_occupancy
+##############  End  #################
+####### 3.1 Volumetric Network ########
+
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -28,7 +34,7 @@ def get_args_parser():
     parser.add_argument("--batch_size", default=32, type=int)
     parser.add_argument("--num_workers", default=4, type=int)
     parser.add_argument(
-        "--type", default="vox", choices=["vox", "point", "mesh"], type=str
+        "--type", default="vox", choices=["vox", "point", "mesh", "occupancy"], type=str
     )
     parser.add_argument("--n_points", default=1000, type=int)
     parser.add_argument("--w_chamfer", default=1.0, type=float)
@@ -42,7 +48,7 @@ def get_args_parser():
 
 def preprocess(feed_dict, args):
     images = feed_dict["images"].squeeze(1)
-    if args.type == "vox":
+    if args.type == "vox" or args.type == "occupancy":
         voxels = feed_dict["voxels"].float()
         assert not torch.all(voxels==0), "Warning: zero input"
         ground_truth_3d = voxels
@@ -97,9 +103,13 @@ def train_model(args):
         shuffle=True,
     )
     train_loader = iter(loader)
+    
+    if args.type == "occupancy":
+        model = OccupancyNetwork(args)
+    else:
+        model = SingleViewto3D(args)
 
-    model = SingleViewto3D(args)
-    model.init_weights()
+    model.init_weights() # NOTE: not implemented for occupancy network
     model.to(args.device)
     model.train()
 
@@ -126,18 +136,23 @@ def train_model(args):
         read_start_time = time.time()
 
         feed_dict = next(train_loader)
-
         images_gt, ground_truth_3d = preprocess(feed_dict, args)
-        read_time = time.time() - read_start_time
 
-        prediction_3d = model(images_gt, args)
+        if args.type == "occupancy":
+            read_time = time.time() - read_start_time
+            target_occupancy = create_target_occupancy(ground_truth_3d)
+            loss = train_step(model, optimizer, scheduler, images_gt, target_occupancy=target_occupancy)
+            
+        else: # NOTE: normal loop for vox, point, mesh
+            read_time = time.time() - read_start_time
+            prediction_3d = model(images_gt, args)
 
-        loss = calculate_loss(prediction_3d, ground_truth_3d, args)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        # NOTE: update learning rate
-        scheduler.step()
+            loss = calculate_loss(prediction_3d, ground_truth_3d, args)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            # NOTE: update learning rate
+            scheduler.step()
 
         total_time = time.time() - start_time
         iter_time = time.time() - iter_start_time
@@ -152,7 +167,7 @@ def train_model(args):
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                 },
-                f"checkpoint_{args.type}_{args.n_points}_{step}.pth",
+                f"checkpoint_{args.type}_{args.n_points}_{args.w_chamfer}_{step}.pth",
             )
 
         print(

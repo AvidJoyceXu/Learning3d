@@ -21,10 +21,15 @@ from visualize_utils import to_numpy, render_pointcloud
 
 from assignment1.starter.utils import get_device
 
+####### 3.1 Volumetric Network ########
+from occupancy_network import OccupancyNetwork, evaluate_occupancy_network
+####### 3.1 Volumetric Network ########
+
 device = get_device()
 visualize_func_dict = {}
 from visualize_utils import render_volume, render_pointcloud, render_mesh
 visualize_func_dict["vox"] = render_volume
+visualize_func_dict["occupancy"] = render_volume
 visualize_func_dict["point"] = render_pointcloud
 visualize_func_dict["mesh"] = render_mesh
 
@@ -34,7 +39,7 @@ def get_args_parser():
     parser.add_argument('--vis_freq', default=1000, type=int)
     parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--num_workers', default=0, type=int)
-    parser.add_argument('--type', default='vox', choices=['vox', 'point', 'mesh'], type=str)
+    parser.add_argument('--type', default='vox', choices=['vox', 'point', 'mesh', 'occupancy'], type=str)
     parser.add_argument('--n_points', default=1000, type=int)
     parser.add_argument('--w_chamfer', default=1.0, type=float)
     parser.add_argument('--w_smooth', default=0.1, type=float)  
@@ -61,7 +66,7 @@ def save_plot(thresholds, avg_f1_score, args):
     ax.set_xlabel('Threshold')
     ax.set_ylabel('F1-score')
     ax.set_title(f'Evaluation {args.type}')
-    plt.savefig(f'eval_{args.type}', bbox_inches='tight')
+    plt.savefig(f'eval_{args.type}_{args.w_chamfer}.png', bbox_inches='tight')
 
 
 def compute_sampling_metrics(pred_points, gt_points, thresholds, eps=1e-8):
@@ -99,9 +104,8 @@ def compute_sampling_metrics(pred_points, gt_points, thresholds, eps=1e-8):
     return metrics
 
 def evaluate(predictions, mesh_gt, thresholds, args):
-    if args.type == "vox":
+    if args.type == "vox" or args.type == "occupancy":
         voxels_src = predictions
-        print("prediction shape", predictions.shape)
         H,W,D = voxels_src.shape[2:]
         vertices_src, faces_src = mcubes.marching_cubes(voxels_src.detach().cpu().squeeze().numpy(), isovalue=0.5)
         if len(vertices_src) == 0:
@@ -145,7 +149,11 @@ def evaluate_model(args):
         drop_last=True)
     eval_loader = iter(loader)
 
-    model = SingleViewto3D(args)
+    if args.type == "occupancy":
+        model = OccupancyNetwork(args)
+    else:
+        model = SingleViewto3D(args)
+
     model.to(args.device)
     model.eval()
 
@@ -160,7 +168,10 @@ def evaluate_model(args):
     avg_r_score = []
 
     if args.load_checkpoint:
-        checkpoint = torch.load(f'checkpoint_{args.type}_{args.n_points}_1000.pth')
+        if args.type == "mesh" or args.type == "occupancy":
+            checkpoint = torch.load(f'checkpoint_{args.type}_{args.n_points}_{args.w_chamfer}_1800.pth')
+        else:
+            checkpoint = torch.load(f'checkpoint_{args.type}_{args.n_points}_1000.pth')
         model.load_state_dict(checkpoint['model_state_dict'])
         print(f"Succesfully loaded iter {start_iter}")
     
@@ -175,9 +186,19 @@ def evaluate_model(args):
 
         images_gt, mesh_gt = preprocess(feed_dict, args)
 
-        read_time = time.time() - read_start_time
+        if args.type == "occupancy":
+            read_time = time.time() - read_start_time
 
-        predictions = model(images_gt, args)
+            image_features = model.encoder(model.normalize(images_gt.permute(0,3,1,2))).squeeze(-1).squeeze(-1) # b x 512
+            predictions = evaluate_occupancy_network(model, image_features)
+            # print(predictions.min(), predictions.max())
+            # print(predictions.shape)
+            # print("number of outliers:, ", torch.sum(predictions < 0), torch.sum(predictions > 1))
+           
+        else:
+            read_time = time.time() - read_start_time
+
+            predictions = model(images_gt, args)
 
         metrics = evaluate(predictions, mesh_gt, thresholds, args)
 
@@ -198,15 +219,15 @@ def evaluate_model(args):
     
         # TODO:
         # if (step % args.vis_freq) == 0:
-        if f1_05 > 90: # NOTE: Only render images with F1@0.05 > 70
+        if f1_05 > 85: # NOTE: Only render images with F1@0.05 > 70
             print("Rendering images for step %d" % step)
             # visualization block
             # NOTE: Save the gt image
-            plt.imsave(f'assignment2/output/2-reconstructing-3d/{args.type}/{step}_gt.png', to_numpy(images_gt.squeeze(1))[0], cmap='gray')
+            plt.imsave(f'assignment2/output/2-reconstructing-3d/{args.type}_{args.w_chamfer}/{step}_gt.png', to_numpy(images_gt.squeeze(1))[0], cmap='gray')
             # NOTE: Use **predictions** for visualization.
-            visualize_func_dict[args.type](predictions, output=f'assignment2/output/2-reconstructing-3d/{args.type}/{step}_pred.gif')
+            visualize_func_dict[args.type](predictions, output=f'assignment2/output/2-reconstructing-3d/{args.type}_{args.w_chamfer}/{step}_pred.gif', dist=2.5)
             # NOTE: Use **mesh_gt** for visualization.
-            render_mesh(mesh_gt, output=f'assignment2/output/2-reconstructing-3d/{args.type}/{step}_gt_mesh.gif')
+            render_mesh(mesh_gt, output=f'assignment2/output/2-reconstructing-3d/{args.type}_{args.w_chamfer}/{step}_gt_mesh.gif')
 
     avg_f1_score = torch.stack(avg_f1_score).mean(0)
 
