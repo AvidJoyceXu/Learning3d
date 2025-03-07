@@ -93,23 +93,27 @@ def render_images(
 
         torch.cuda.empty_cache()
         camera = camera.to(device)
-        xy_grid = get_pixels_from_image(image_size, camera) # TODO (Q1.3): implement in ray_utils.py
+        xy_grid = get_pixels_from_image(image_size, camera) # TODO (Q1.3): implement in ray_utils.py    
         ray_bundle = get_rays_from_pixels(xy_grid, image_size, camera) # TODO (Q1.3): implement in ray_utils.py
-
         # TODO (Q1.3): Visualize xy grid using vis_grid
         if cam_idx == 0 and file_prefix == '':
-            pass
+           grids = vis_grid(xy_grid, image_size)
+           plt.imsave(f'images/1.3/{file_prefix}_xy_grid.png', grids)
 
         # TODO (Q1.3): Visualize rays using vis_rays
         if cam_idx == 0 and file_prefix == '':
-            pass
+            rays = vis_rays(ray_bundle, image_size)
+            # import ipdb; ipdb.set_trace()
+            plt.imsave(f'images/1.3/{file_prefix}_rays.png', rays)
         
         # TODO (Q1.4): Implement point sampling along rays in sampler.py
-        pass
+        ray_bundle = model.sampler(ray_bundle)
 
         # TODO (Q1.4): Visualize sample points as point cloud
         if cam_idx == 0 and file_prefix == '':
-            pass
+            points = ray_bundle.sample_points
+            from render_functions import render_points
+            render_points(f'images/1.4/{file_prefix}_points.png', points.reshape(1, -1, 3), image_size)
 
         # TODO (Q1.5): Implement rendering in renderer.py
         out = model(ray_bundle)
@@ -124,7 +128,10 @@ def render_images(
 
         # TODO (Q1.5): Visualize depth
         if cam_idx == 2 and file_prefix == '':
-            pass
+            depth = out['depth'].view(image_size[1], image_size[0]).unsqueeze(-1).expand(-1, -1, 3).detach().cpu()
+            # NOTE: the depth should be normalized by its maximum value
+            depth = np.array(depth / depth.max())
+            plt.imsave(f'images/1.5/{file_prefix}_depth.png', depth)
 
         # Save
         if save:

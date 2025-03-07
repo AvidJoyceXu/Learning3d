@@ -23,10 +23,27 @@ class VolumeRenderer(torch.nn.Module):
         eps: float = 1e-10
     ):
         # TODO (1.5): Compute transmittance using the equation described in the README
-        pass
+        # Calculate alpha (opacity) from density * delta
+        alpha = 1 - torch.exp(-rays_density * deltas) # (N_rays, n_pts)
+        
+        # Compute transmittance T = exp(-sum(density * delta))
+        # For numerical stability, we compute this in log space
+        log_transmittance = torch.cumsum( # (N_rays, n_pts)
+            torch.log(1 - alpha + eps),
+            dim=1
+        )
+        # Shift the log_transmittance and prepend with 0 (T=1 for first sample)
+        log_transmittance = torch.cat([
+            torch.zeros_like(log_transmittance[:, :1]),
+            log_transmittance[:, :-1]
+        ], dim=1)
+        transmittance = torch.exp(log_transmittance)
 
         # TODO (1.5): Compute weight used for rendering from transmittance and alpha
-        return weights
+        # weights = T * (1 - exp(-sigma * delta))
+        weights = transmittance * alpha
+        
+        return weights # Weights = T(x, x_ti) * alpha(x, x_ti)
     
     def _aggregate(
         self,
@@ -34,8 +51,9 @@ class VolumeRenderer(torch.nn.Module):
         rays_feature: torch.Tensor
     ):
         # TODO (1.5): Aggregate (weighted sum of) features using weights
-        pass
-
+        # Weighted sum of features
+        feature = torch.sum(weights * rays_feature, dim=1)
+        
         return feature
 
     def forward(
@@ -73,15 +91,22 @@ class VolumeRenderer(torch.nn.Module):
 
             # Compute aggregation weights
             weights = self._compute_weights(
-                deltas.view(-1, n_pts, 1),
+                deltas.view(-1, n_pts, 1), #
                 density.view(-1, n_pts, 1)
             ) 
-
+            #  ipdb; ipdb.set_trace()
             # TODO (1.5): Render (color) features using weights
-            pass
+            feature = self._aggregate(
+                weights,
+                feature.view(-1, n_pts, feature.shape[-1])
+            )
 
             # TODO (1.5): Render depth map
-            pass
+            # Depth is the weighted sum of sample distances
+            depth = self._aggregate(
+                weights,
+                depth_values.view(-1, n_pts, 1)
+            )
 
             # Return
             cur_out = {
@@ -98,7 +123,6 @@ class VolumeRenderer(torch.nn.Module):
               dim=0
             ) for k in chunk_outputs[0].keys()
         }
-
         return out
 
 

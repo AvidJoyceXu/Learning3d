@@ -35,7 +35,7 @@ class RayBundle(object):
 
     @property
     def shape(self):
-        return self.origins.shape[:-1]
+        return self.origins.shape[:-1] 
 
     @property
     def sample_shape(self):
@@ -89,10 +89,12 @@ def get_pixels_from_image(image_size, camera):
     W, H = image_size[0], image_size[1]
 
     # TODO (Q1.3): Generate pixel coordinates from [0, W] in x and [0, H] in y
-    pass
+    x = torch.arange(0, W)
+    y = torch.arange(0, H)
 
     # TODO (Q1.3): Convert to the range [-1, 1] in both x and y
-    pass
+    x = (x - W / 2) / (W / 2)
+    y = (y - H / 2) / (H / 2)
 
     # Create grid of coordinates
     xy_grid = torch.stack(
@@ -119,7 +121,7 @@ def get_rays_from_pixels(xy_grid, image_size, camera):
     W, H = image_size[0], image_size[1]
 
     # TODO (Q1.3): Map pixels to points on the image plane at Z=1
-    pass
+    ndc_points = xy_grid
 
     ndc_points = torch.cat(
         [
@@ -130,13 +132,16 @@ def get_rays_from_pixels(xy_grid, image_size, camera):
     )
 
     # TODO (Q1.3): Use camera.unproject to get world space points from NDC space points
-    pass
+    # import ipdb; ipdb.set_trace()
+    world_points = camera.unproject_points(ndc_points.to(camera.device), world_coordinates=True, from_ndc=True)
 
     # TODO (Q1.3): Get ray origins from camera center
-    pass
+    rays_o = camera.get_camera_center().expand(world_points.shape[0], -1)
 
     # TODO (Q1.3): Get ray directions as image_plane_points - rays_o
-    pass
+    rays_d = torch.nn.functional.normalize(world_points - rays_o, dim=-1)
+    # NOTE: point in world space, NDC space, image plane cooresponds to the same point
+    # NOTE: use ray marching to find the color of word points, which corresponds to the color of the pixel
 
     # Create and return RayBundle
     return RayBundle(
