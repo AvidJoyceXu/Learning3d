@@ -269,6 +269,8 @@ class MLPWithInputSkips(torch.nn.Module):
             linear = torch.nn.Linear(dimin, dimout)
             layers.append(torch.nn.Sequential(linear, torch.nn.ReLU(True)))
 
+        layers.append(torch.nn.Linear(dimout, output_dim))
+
         self.mlp = torch.nn.ModuleList(layers)
         self._input_skips = set(input_skips)
 
@@ -283,6 +285,13 @@ class MLPWithInputSkips(torch.nn.Module):
 
         return y
 
+    def init_weights(self):
+        for layer in self.mlp:
+            if isinstance(layer, torch.nn.Linear):
+                torch.nn.init.xavier_uniform_(layer.weight)
+                if layer.bias is not None:
+                    torch.nn.init.zeros_(layer.bias)
+
 
 # TODO (Q3.1): Implement NeRF MLP
 class NeuralRadianceField(torch.nn.Module):
@@ -291,14 +300,80 @@ class NeuralRadianceField(torch.nn.Module):
         cfg,
     ):
         super().__init__()
-
+        
+        # Create embeddings for xyz coordinates and view directions
         self.harmonic_embedding_xyz = HarmonicEmbedding(3, cfg.n_harmonic_functions_xyz)
         self.harmonic_embedding_dir = HarmonicEmbedding(3, cfg.n_harmonic_functions_dir)
+        
+        # Get embedding dimensions
+        self.embedding_dim_xyz = self.harmonic_embedding_xyz.output_dim
+        self.embedding_dim_dir = self.harmonic_embedding_dir.output_dim
+        
+        # Create main MLP for xyz processing
+        self.mlp_xyz = MLPWithInputSkips(
+            n_layers=cfg.n_layers_xyz,
+            input_dim=self.embedding_dim_xyz,
+            output_dim=cfg.n_hidden_neurons_xyz,  # Output features for color network
+            skip_dim=self.embedding_dim_xyz,
+            hidden_dim=cfg.n_hidden_neurons_xyz,
+            input_skips=cfg.append_xyz,  # Use append_xyz from config for skip connections
+        )
+        
+        # Create density head
+        self.density_head = torch.nn.Linear(cfg.n_hidden_neurons_xyz, 1)
+    
+        # Create color MLP
+        self.mlp_color = MLPWithInputSkips(
+            n_layers=2,  # Smaller network for color
+            # input_dim=cfg.n_hidden_neurons_xyz + self.embedding_dim_dir,  # Features + view directions
+            input_dim=cfg.n_hidden_neurons_xyz, # NOTE: For now, NeRF MLP does not need to handle view dependence, and can solely depend on 3D position.
+            output_dim=3,  # RGB colors
+            skip_dim=0,  # No skip connections for color network
+            hidden_dim=cfg.n_hidden_neurons_dir,
+            input_skips=[],
+        )
+        
+        # Store density noise std
+        self.density_noise_std = cfg.density_noise_std
 
-        embedding_dim_xyz = self.harmonic_embedding_xyz.output_dim
-        embedding_dim_dir = self.harmonic_embedding_dir.output_dim
+    def init_weights(self):
+        self.mlp_xyz.init_weights()
+        self.mlp_color.init_weights()
+       
+    def forward(self, ray_bundle):
+        # Get sample points and view directions
+        sample_points = ray_bundle.sample_points.view(-1, 3)
+        view_dirs = ray_bundle.directions.view(-1, 3)
 
-        pass
+        # Embed coordinates and view directions
+        xyz_embedding = self.harmonic_embedding_xyz(sample_points)
+        dir_embedding = self.harmonic_embedding_dir(view_dirs)
+        
+        # Get features from main MLP
+        features = self.mlp_xyz(xyz_embedding, xyz_embedding)
+        
+        # Get density from features
+        density = self.density_head(features) # NOTE: [debug]density is all negative now !!
+        
+        # Add noise to density during training if specified
+        if self.training and self.density_noise_std > 0:
+            density = density + torch.randn_like(density) * self.density_noise_std
+            
+        # Apply ReLU to get final density
+        density = torch.relu(density) 
+        
+        # Get colors by concatenating features and view directions
+        
+        # color_input = torch.cat([features, dir_embedding], dim=-1)
+        # TODO: For now, NeRF MLP does not need to handle view dependence, and can solely depend on 3D position.
+        color_input = features
+        raw_colors = self.mlp_color(color_input, None)  # No skip connections for color
+        colors = torch.sigmoid(raw_colors)  # Ensure colors are in [0,1]
+        
+        return {
+            'density': density,
+            'feature': colors,
+        }
 
 
 class NeuralSurface(torch.nn.Module):

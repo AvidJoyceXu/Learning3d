@@ -208,7 +208,8 @@ def train(
 
             # TODO (Q2.2): Calculate loss
             loss = torch.nn.functional.mse_loss(out['feature'], rgb_gt)
-
+            assert torch.sum(out['feature']) != 0, "feature is 0"
+            assert loss.item() != 0, "loss is 0"
             # Backprop
             optimizer.zero_grad()
             loss.backward()
@@ -290,6 +291,7 @@ def train_nerf(
 ):
     # Create model
     model, optimizer, lr_scheduler, start_epoch, checkpoint_path = create_model(cfg)
+    model.implicit_fn.init_weights()
 
     # Load the training/validation data.
     train_dataset, val_dataset, _ = get_nerf_datasets(
@@ -327,7 +329,9 @@ def train_nerf(
             out = model(ray_bundle)
 
             # TODO (Q3.1): Calculate loss
-            loss = None
+            feature_loss = torch.nn.functional.mse_loss(out['feature'], rgb_gt)
+            # import ipdb; ipdb.set_trace()
+            loss = feature_loss
 
             # Take the training step.
             optimizer.zero_grad()
