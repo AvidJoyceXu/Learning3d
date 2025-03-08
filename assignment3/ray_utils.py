@@ -110,10 +110,11 @@ def get_random_pixels_from_image(n_pixels, image_size, camera):
     xy_grid = get_pixels_from_image(image_size, camera)
     
     # TODO (Q2.1): Random subsampling of pixel coordinaters
-    pass
+    # import ipdb; ipdb.set_trace()
+    xy_grid_sub = xy_grid[torch.randperm(xy_grid.shape[0])] # [W * H, 2]
 
     # Return
-    return xy_grid_sub.reshape(-1, 2)[:n_pixels]
+    return xy_grid_sub.reshape(-1, 2)[:n_pixels].to(camera.device) # [n_pixels, 2]
 
 
 # Get rays from pixel values
