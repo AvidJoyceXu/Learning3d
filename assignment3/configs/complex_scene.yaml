@@ -1,0 +1,179 @@
+seed: 1
+
+type: render
+
+data:
+  # image_size: [256, 256]
+  image_size: [1024, 1024]
+
+renderer:
+  type: sphere_tracing
+  chunk_size: 8192
+  near: 0.0
+  far: 10.0
+  max_iters: 128
+
+sampler:
+  type: stratified
+  n_pts_per_ray:
+  min_depth:
+  max_depth:
+
+implicit_function:
+  type: sdf_surface
+
+  sdf:
+    type: composite
+    primitives:
+      # Central torus
+      - type: torus
+        radii:
+          val: [1.0, 0.2]
+          opt: False
+        center: 
+          val: [0.0, 0.0, 0.0]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      # Surrounding spheres
+      - type: sphere
+        radius:
+          val: 0.2
+          opt: False
+        center: 
+          val: [1.5, 0.0, 0.0]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      - type: sphere
+        radius:
+          val: 0.2
+          opt: False
+        center: 
+          val: [-1.5, 0.0, 0.0]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      - type: sphere
+        radius:
+          val: 0.2
+          opt: False
+        center: 
+          val: [0.0, 1.5, 0.0]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      - type: sphere
+        radius:
+          val: 0.2
+          opt: False
+        center: 
+          val: [0.0, -1.5, 0.0]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      # Small tori at angles
+      - type: torus
+        radii:
+          val: [0.4, 0.1]
+          opt: False
+        center: 
+          val: [1.0, 1.0, 0.5]
+          opt: False
+        transform:
+          rotation: [0.785, 0.0, 0.785]  # 45 degrees
+          scale: [1.0, 1.0, 1.0]
+
+      - type: torus
+        radii:
+          val: [0.4, 0.1]
+          opt: False
+        center: 
+          val: [-1.0, -1.0, 0.5]
+          opt: False
+        transform:
+          rotation: [0.785, 0.0, -0.785]
+          scale: [1.0, 1.0, 1.0]
+
+      # Floating boxes
+      - type: box
+        side_lengths:
+          val: [0.3, 0.3, 0.3]
+          opt: False
+        center: 
+          val: [0.8, -0.8, 1.0]
+          opt: False
+        transform:
+          rotation: [0.524, 0.524, 0.0]  # 30 degrees
+          scale: [1.0, 1.0, 1.0]
+
+      - type: box
+        side_lengths:
+          val: [0.3, 0.3, 0.3]
+          opt: False
+        center: 
+          val: [-0.8, 0.8, 1.0]
+          opt: False
+        transform:
+          rotation: [-0.524, -0.524, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      # More spheres in a spiral
+      - type: sphere
+        radius:
+          val: 0.15
+          opt: False
+        center: 
+          val: [1.2, 1.2, 0.3]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      - type: sphere
+        radius:
+          val: 0.15
+          opt: False
+        center: 
+          val: [-1.2, -1.2, 0.3]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      - type: sphere
+        radius:
+          val: 0.15
+          opt: False
+        center: 
+          val: [1.2, -1.2, 0.3]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+      - type: sphere
+        radius:
+          val: 0.15
+          opt: False
+        center: 
+          val: [-1.2, 1.2, 0.3]
+          opt: False
+        transform:
+          rotation: [0.0, 0.0, 0.0]
+          scale: [1.0, 1.0, 1.0]
+
+  feature:
+    rainbow: False
+    val: [1.0, 1.0, 1.0]
+    opt: False 

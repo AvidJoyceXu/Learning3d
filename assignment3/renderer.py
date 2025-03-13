@@ -275,8 +275,11 @@ def sdf_to_density(signed_distance, alpha, beta):
     # Multiply by alpha to get final density
     density = alpha * density
     
-    return density
+    return density 
 
+def sdf_to_density(signed_distance, s):
+    # TODO (Q8.3): Implement sdf_to_density in VolSDF Paper (https://arxiv.org/pdf/2106.12052.pdf)
+    return s * torch.exp(-s * signed_distance) / torch.square(1 + torch.exp(-s * signed_distance))
 
 class VolumeSDFRenderer(VolumeRenderer):
     def __init__(
@@ -287,8 +290,12 @@ class VolumeSDFRenderer(VolumeRenderer):
 
         self._chunk_size = cfg.chunk_size
         self._white_background = cfg.white_background if 'white_background' in cfg else False
-        self.alpha = cfg.alpha
-        self.beta = cfg.beta
+        self.sdf_type = cfg.sdf_type
+        if self.sdf_type.lower() == 'volsdf':
+            self.alpha = cfg.alpha
+            self.beta = cfg.beta
+        elif self.sdf_type.lower() == 'neus':
+            self.s = cfg.s
 
         self.cfg = cfg
 
@@ -313,7 +320,11 @@ class VolumeSDFRenderer(VolumeRenderer):
 
             # Call implicit function with sample points
             distance, color = implicit_fn.get_distance_color(cur_ray_bundle.sample_points)
-            density = sdf_to_density(distance, self.alpha, self.beta)
+
+            if self.sdf_type.lower() == 'volsdf':
+                density = sdf_to_density(distance, self.alpha, self.beta)
+            elif self.sdf_type.lower() == 'neus':
+                density = sdf_to_density(distance, self.s)
 
             # Compute length of each ray segment
             depth_values = cur_ray_bundle.sample_lengths[..., 0]

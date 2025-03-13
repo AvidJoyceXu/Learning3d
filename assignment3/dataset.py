@@ -119,8 +119,11 @@ def get_nerf_datasets(
         ).to("cpu")
         for cami in range(n_cameras)
     ]
-
+    
     train_idx, val_idx, test_idx = train_data["split"]
+    print(f"Part 7: We are using {len(train_idx)} images for training")
+    # train_idx = train_idx[:20]
+    # print(f"Part 8: We are using only {len(train_idx)} images for training")
 
     train_dataset, val_dataset, test_dataset = [
         ListDataset(

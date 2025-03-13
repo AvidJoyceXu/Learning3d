@@ -147,7 +147,7 @@ def render(
     all_images = render_images(
         model, cameras, cfg.data.image_size
     )
-    imageio.mimsave('images/part_5.gif', [np.uint8(im * 255) for im in all_images],loop=0)
+    imageio.mimsave('images/part_8.gif', [np.uint8(im * 255) for im in all_images],loop=0)
 
 
 def create_model(cfg):

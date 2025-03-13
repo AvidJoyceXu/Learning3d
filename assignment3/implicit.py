@@ -526,6 +526,84 @@ class NeuralSurface(torch.nn.Module):
         return distance, gradient
 
 
+class CompositeSDF(torch.nn.Module):
+    def __init__(
+        self,
+        cfg
+    ):
+        super().__init__()
+        
+        # Create list to store all primitives
+        self.primitives = torch.nn.ModuleList()
+        self.centers = []
+        self.rotations = []
+        self.scales = []
+        
+        # Create each primitive from config
+        for primitive_cfg in cfg.primitives:
+            # Create the primitive
+            primitive = sdf_dict[primitive_cfg.type](primitive_cfg)
+            self.primitives.append(primitive)
+            
+            # Store transformation parameters
+            self.centers.append(torch.tensor(primitive_cfg.center.val).float())
+            self.rotations.append(torch.tensor(primitive_cfg.transform.rotation).float())
+            self.scales.append(torch.tensor(primitive_cfg.transform.scale).float())
+        
+        # Convert lists to tensors
+        self.centers = torch.stack(self.centers)
+        self.rotations = torch.stack(self.rotations)
+        self.scales = torch.stack(self.scales)
+        
+    def transform_points(self, points, center, rotation, scale):
+        # Center the points
+        centered = points - center.unsqueeze(0)
+        
+        # Create rotation matrix (assuming rotation is in radians [rx, ry, rz])
+        rx, ry, rz = rotation
+        Rx = torch.tensor([[1, 0, 0],
+                          [0, torch.cos(rx), -torch.sin(rx)],
+                          [0, torch.sin(rx), torch.cos(rx)]], device=points.device)
+        Ry = torch.tensor([[torch.cos(ry), 0, torch.sin(ry)],
+                          [0, 1, 0],
+                          [-torch.sin(ry), 0, torch.cos(ry)]], device=points.device)
+        Rz = torch.tensor([[torch.cos(rz), -torch.sin(rz), 0],
+                          [torch.sin(rz), torch.cos(rz), 0],
+                          [0, 0, 1]], device=points.device)
+        R = Rz @ Ry @ Rx
+        
+        # Apply rotation and scale
+        transformed = (R @ centered.unsqueeze(-1)).squeeze(-1) / scale.unsqueeze(0)
+        
+        return transformed
+
+    def forward(self, points):
+        points = points.view(-1, 3)
+        
+        # Initialize with large positive value
+        min_distance = torch.ones_like(points[:, 0:1]) * 1000.0
+        
+        # Compute SDF for each primitive
+        for i, primitive in enumerate(self.primitives):
+            # Transform points to primitive's local space
+            transformed_points = self.transform_points(
+                points,
+                self.centers[i].to(points.device),
+                self.rotations[i].to(points.device),
+                self.scales[i].to(points.device)
+            )
+            
+            # Compute SDF and scale back
+            distance = primitive(transformed_points) * self.scales[i][0]
+            
+            # Take minimum (union operation)
+            min_distance = torch.minimum(min_distance, distance)
+        
+        return min_distance
+
+# Add to sdf_dict
+sdf_dict['composite'] = CompositeSDF
+
 implicit_dict = {
     'sdf_volume': SDFVolume,
     'nerf': NeuralRadianceField,
