@@ -233,7 +233,7 @@ def train_points(
 
             # Get distances and enforce point cloud loss
             distances, gradients = model.implicit_fn.get_distance_and_gradient(points)
-            loss = None # TODO (Q6): Point cloud SDF loss on distances
+            loss = torch.square(distances).mean() # TODO (Q6): Point cloud SDF loss on distances
             point_loss = loss
 
             # Sample random points in bounding box
@@ -243,6 +243,7 @@ def train_points(
 
             # Get sdf gradients and enforce eikonal loss
             eikonal_distances, eikonal_gradients = model.implicit_fn.get_distance_and_gradient(eikonal_points)
+            # import ipdb; ipdb.set_trace()
             loss += torch.exp(-1e2 * torch.abs(eikonal_distances)).mean() * cfg.training.inter_weight
             loss += eikonal_loss(eikonal_gradients) * cfg.training.eikonal_weight # TODO (Q6): Implement eikonal loss
 
@@ -421,6 +422,9 @@ def train_images(
 def main(cfg: DictConfig):
     os.chdir(hydra.utils.get_original_cwd())
 
+    # fix seed
+    torch.manual_seed(cfg.seed)
+    np.random.seed(cfg.seed)
     if cfg.type == 'render':
         render(cfg)
     elif cfg.type == 'train_points':

@@ -3,4 +3,4 @@ outputs
 checkpoints
 data
 nerf_materials
-
+points_checkpoint

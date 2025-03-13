@@ -396,21 +396,43 @@ class NeuralSurface(torch.nn.Module):
         cfg,
     ):
         super().__init__()
-        # TODO (Q6): Implement Neural Surface MLP to output per-point SDF
-        # TODO (Q7): Implement Neural Surface MLP to output per-point color
+        
+        # Create positional embedding for xyz coordinates
+        self.harmonic_embedding_xyz = HarmonicEmbedding(
+            3, cfg.n_harmonic_functions_xyz
+        )
+        
+        # Get embedding dimension
+        self.embedding_dim_xyz = self.harmonic_embedding_xyz.output_dim
+        
+        # Create MLP for SDF prediction
+        self.mlp_sdf = MLPWithInputSkips(
+            n_layers=cfg.n_layers_distance,
+            input_dim=self.embedding_dim_xyz,
+            output_dim=1,  # Single SDF value output
+            skip_dim=self.embedding_dim_xyz,
+            hidden_dim=cfg.n_hidden_neurons_distance,
+            input_skips=cfg.append_distance,  # Skip connections as specified in config
+        )
 
     def get_distance(
         self,
         points
     ):
         '''
-        TODO: Q6
         Output:
             distance: N X 1 Tensor, where N is number of input points
         '''
         points = points.view(-1, 3)
-        pass
-    
+        
+        # Embed xyz coordinates
+        points_embedding = self.harmonic_embedding_xyz(points)
+        
+        # Pass through MLP to get SDF values
+        distances = self.mlp_sdf(points_embedding, points_embedding)
+        # NOTE: No need to apply ReLU to **Signed** DF values
+        return distances
+
     def get_color(
         self,
         points

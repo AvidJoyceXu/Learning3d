@@ -3,7 +3,8 @@ import torch.nn.functional as F
 
 def eikonal_loss(gradients):
     # TODO (Q6): Implement eikonal loss
-    pass
+    # NOTE: SDF requires ||f'(x)|| = 1
+    return (torch.norm(gradients, dim=-1) - 1.0).pow(2).mean()
 
 def sphere_loss(signed_distance, points, radius=1.0):
     return torch.square(signed_distance[..., 0] - (torch.norm(points, dim=-1) - radius)).mean()

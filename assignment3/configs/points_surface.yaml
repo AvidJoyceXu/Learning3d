@@ -15,7 +15,7 @@ renderer:
 
 sampler:
   type: stratified
-  n_pts_per_ray:
+  n_pts_per_ray: 
   min_depth:
   max_depth:
 
