@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 from typing import List, Optional, Tuple
 from pytorch3d.renderer.cameras import CamerasBase
@@ -161,7 +162,48 @@ class SphereTracingRenderer(torch.nn.Module):
         #   in order to compute intersection points of rays with the implicit surface
         # 2) Maintain a mask with the same batch dimension as the ray origins,
         #   indicating which points hit the surface, and which do not
-        pass
+        
+        # Initialize points at ray origins
+        points = origins.clone()
+        
+        # Initialize mask for convergence
+        mask = torch.zeros(origins.shape[0], 1, dtype=torch.bool, device=origins.device)
+        
+        # Normalize ray directions
+        directions = F.normalize(directions, dim=-1)
+        
+        # Sphere tracing loop
+        eps = 1e-5  # Distance threshold for surface intersection
+        max_iters = self.max_iters
+        min_dist = self.near
+        max_dist = self.far
+        total_distance = torch.zeros_like(mask, dtype=torch.float32)
+        
+        for _ in range(max_iters):
+            # Get current SDF values
+            distances = implicit_fn(points)
+            
+            # Check if we hit the surface (SDF value close to 0)
+            hit_mask = torch.abs(distances) < eps
+            
+            # Update convergence mask
+            mask = mask | hit_mask
+            
+            # Break if all rays have hit
+            if torch.all(mask):
+                break
+                
+            # Update points for non-converged rays
+            not_converged = ~mask.squeeze(-1) 
+            
+            # Step size is the SDF value (distance to nearest surface)
+            step_size = distances[not_converged]
+            
+            # Update points by stepping along ray
+            points[not_converged] = points[not_converged] + directions[not_converged] * step_size
+        
+        # import ipdb; ipdb.set_trace()
+        return points, mask
 
     def forward(
         self,

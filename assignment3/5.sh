@@ -1,0 +1,1 @@
+python -m surface_rendering_main --config-name=torus_surface
