@@ -40,7 +40,7 @@ class StratifiedRaysampler(torch.nn.Module):
         # z_vals: (n_rays, n_pts)
         sample_points = ray_bundle.origins.unsqueeze(1) + ray_bundle.directions.unsqueeze(1) * z_vals.unsqueeze(2)   # (n_rays, n_pts, 3)
         # sample_points: (n_rays, n_pts, 3)
-        import ipdb; ipdb.set_trace()
+
         return ray_bundle._replace(
             sample_points=sample_points,
             sample_lengths=z_vals.unsqueeze(2) * torch.ones_like(sample_points[..., :1]),

@@ -253,7 +253,30 @@ class SphereTracingRenderer(torch.nn.Module):
 
 def sdf_to_density(signed_distance, alpha, beta):
     # TODO (Q7): Convert signed distance to density with alpha, beta parameters
-    pass
+    # Equation (2) and (3) from the paper:
+    # σ(x) = αΨ_β(-d_Ω(x))
+    # where Ψ_β(s) = {
+    #   1/2 * exp(s/β)        if s ≤ 0
+    #   1 - 1/2 * exp(-s/β)   if s > 0
+    # }
+    
+    # Negate the signed distance as per equation (2)
+    s = -signed_distance
+    
+    # Compute Laplace CDF (Ψ_β)
+    # Case 1: s ≤ 0
+    mask = s <= 0
+    density = torch.zeros_like(signed_distance)
+    density[mask] = 0.5 * torch.exp(s[mask] / beta)
+    
+    # Case 2: s > 0
+    density[~mask] = 1.0 - 0.5 * torch.exp(-s[~mask] / beta)
+    
+    # Multiply by alpha to get final density
+    density = alpha * density
+    
+    return density
+
 
 class VolumeSDFRenderer(VolumeRenderer):
     def __init__(
@@ -290,7 +313,7 @@ class VolumeSDFRenderer(VolumeRenderer):
 
             # Call implicit function with sample points
             distance, color = implicit_fn.get_distance_color(cur_ray_bundle.sample_points)
-            density = None # TODO (Q7): convert SDF to density
+            density = sdf_to_density(distance, self.alpha, self.beta)
 
             # Compute length of each ray segment
             depth_values = cur_ray_bundle.sample_lengths[..., 0]

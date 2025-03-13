@@ -3,4 +3,5 @@ outputs
 checkpoints
 data
 nerf_materials
+volsdf_checkpoint
 points_checkpoint

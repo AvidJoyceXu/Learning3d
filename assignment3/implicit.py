@@ -409,10 +409,23 @@ class NeuralSurface(torch.nn.Module):
         self.mlp_sdf = MLPWithInputSkips(
             n_layers=cfg.n_layers_distance,
             input_dim=self.embedding_dim_xyz,
-            output_dim=1,  # Single SDF value output
+            output_dim=cfg.n_hidden_neurons_distance,  # Output features for color network
             skip_dim=self.embedding_dim_xyz,
             hidden_dim=cfg.n_hidden_neurons_distance,
-            input_skips=cfg.append_distance,  # Skip connections as specified in config
+            input_skips=cfg.append_distance,
+        )
+        
+        # Create density head
+        self.distance_head = torch.nn.Linear(cfg.n_hidden_neurons_distance, 1)
+        
+        # Create color MLP
+        self.mlp_color = MLPWithInputSkips(
+            n_layers=cfg.n_layers_color,
+            input_dim=cfg.n_hidden_neurons_distance + self.embedding_dim_xyz,  # Features + position embedding
+            output_dim=3,  # RGB colors
+            skip_dim=self.embedding_dim_xyz,
+            hidden_dim=cfg.n_hidden_neurons_color,
+            input_skips=cfg.append_color,
         )
 
     def get_distance(
@@ -428,9 +441,12 @@ class NeuralSurface(torch.nn.Module):
         # Embed xyz coordinates
         points_embedding = self.harmonic_embedding_xyz(points)
         
-        # Pass through MLP to get SDF values
-        distances = self.mlp_sdf(points_embedding, points_embedding)
-        # NOTE: No need to apply ReLU to **Signed** DF values
+        # Get features from SDF network
+        features = self.mlp_sdf(points_embedding, points_embedding)
+        
+        # Get final SDF value
+        distances = self.distance_head(features)
+        
         return distances
 
     def get_color(
@@ -438,25 +454,52 @@ class NeuralSurface(torch.nn.Module):
         points
     ):
         '''
-        TODO: Q7
         Output:
-            distance: N X 3 Tensor, where N is number of input points
+            color: N X 3 Tensor, where N is number of input points
         '''
         points = points.view(-1, 3)
-        pass
+        
+        # Embed xyz coordinates
+        points_embedding = self.harmonic_embedding_xyz(points)
+        
+        # Get features from SDF network
+        features = self.mlp_sdf(points_embedding, points_embedding)
+        
+        # Get colors by concatenating features and position embedding
+        color_input = torch.cat([features, points_embedding], dim=-1)
+        colors = self.mlp_color(color_input, points_embedding)
+        
+        # Apply sigmoid to ensure colors are in [0,1]
+        colors = torch.sigmoid(colors)
+        
+        return colors
     
     def get_distance_color(
         self,
         points
     ):
         '''
-        TODO: Q7
         Output:
             distance, points: N X 1, N X 3 Tensors, where N is number of input points
         You may just implement this by independent calls to get_distance, get_color
             but, depending on your MLP implementation, it maybe more efficient to share some computation
         '''
+        # Embed xyz coordinates
+        points_embedding = self.harmonic_embedding_xyz(points)
         
+        # Get features from SDF network
+        features = self.mlp_sdf(points_embedding, points_embedding)
+        
+        # Get SDF value
+        distances = self.distance_head(features)
+        
+        # Get colors
+        color_input = torch.cat([features, points_embedding], dim=-1)
+        colors = self.mlp_color(color_input, points_embedding)
+        colors = torch.sigmoid(colors)
+        
+        return distances, colors
+    
     def forward(self, points):
         return self.get_distance(points)
 

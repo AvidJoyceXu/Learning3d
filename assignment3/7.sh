@@ -1,0 +1,1 @@
+python -m surface_rendering_main --config-name=volsdf_surface
