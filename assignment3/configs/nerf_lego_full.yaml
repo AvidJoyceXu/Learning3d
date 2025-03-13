@@ -1,0 +1,51 @@
+seed: 1
+
+type: train_nerf
+
+training:
+  num_epochs: 250
+  batch_size: 1024
+  lr: 0.0005
+
+  lr_scheduler_step_size: 50
+  lr_scheduler_gamma: 0.8
+
+  checkpoint_path: ./checkpoints
+  checkpoint_interval: 50
+  resume: True
+
+  render_interval: 10
+
+data:
+  image_size: [128, 128]
+  dataset_name: lego
+
+renderer:
+  type: volume
+  chunk_size: 32768
+  white_background: False
+
+sampler:
+  type: stratified
+  n_pts_per_ray: 128
+  min_depth: 2.0
+  max_depth: 6.0
+
+implicit_function:
+  type: nerf
+
+  # Position encoding parameters (γ(x) in paper)
+  n_harmonic_functions_xyz: 10  # L=10 for position in paper
+  n_harmonic_functions_dir: 4   # L=4 for view direction in paper
+
+  # Network architecture parameters
+  n_hidden_neurons_xyz: 256     # 8 layers of 256 neurons for spatial network
+  n_hidden_neurons_dir: 128     # 128 neurons for view-dependent network
+  n_layers_xyz: 8              # 8 layers total for spatial network
+  append_xyz: [4]              # Skip connection at 5th layer (index 4)
+  
+  # View direction settings
+  use_view_dirs: True          # Enable view direction input to color network
+  use_input: False             # Use input in view direction positional embedding
+  # Training parameters
+  density_noise_std: 1.0       # Add noise during training as mentioned in paper 

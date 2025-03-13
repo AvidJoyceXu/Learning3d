@@ -370,12 +370,17 @@ def train_nerf(
                     model, create_surround_cameras(4.0, n_poses=20, up=(0.0, 0.0, 1.0), focal_length=2.0),
                     cfg.data.image_size, file_prefix='nerf'
                 )
-                imageio.mimsave('images/part_3.gif', [np.uint8(im * 255) for im in test_images], loop=0)
+                imageio.mimsave(f'images/{cfg.output}_part_3.gif', [np.uint8(im * 255) for im in test_images], loop=0)
 
 
 @hydra.main(config_path='./configs', config_name='sphere')
 def main(cfg: DictConfig):
     os.chdir(hydra.utils.get_original_cwd())
+
+    # fix random seed
+    torch.manual_seed(cfg.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(cfg.seed)
 
     if cfg.type == 'render':
         render(cfg)

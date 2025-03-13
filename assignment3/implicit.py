@@ -303,7 +303,10 @@ class NeuralRadianceField(torch.nn.Module):
         
         # Create embeddings for xyz coordinates and view directions
         self.harmonic_embedding_xyz = HarmonicEmbedding(3, cfg.n_harmonic_functions_xyz)
-        self.harmonic_embedding_dir = HarmonicEmbedding(3, cfg.n_harmonic_functions_dir)
+        if hasattr(cfg, 'use_input'):
+            self.harmonic_embedding_dir = HarmonicEmbedding(3, cfg.n_harmonic_functions_dir, include_input=cfg.use_input)
+        else:
+            self.harmonic_embedding_dir = HarmonicEmbedding(3, cfg.n_harmonic_functions_dir)
         
         # Get embedding dimensions
         self.embedding_dim_xyz = self.harmonic_embedding_xyz.output_dim
@@ -315,8 +318,8 @@ class NeuralRadianceField(torch.nn.Module):
             input_dim=self.embedding_dim_xyz,
             output_dim=cfg.n_hidden_neurons_xyz,  # Output features for color network
             skip_dim=self.embedding_dim_xyz,
-            hidden_dim=cfg.n_hidden_neurons_xyz,
-            input_skips=cfg.append_xyz,  # Use append_xyz from config for skip connections
+            hidden_dim=cfg.n_hidden_neurons_xyz,  # 256 hidden neurons
+            input_skips=cfg.append_xyz,  # Skip at 5th layer (index 4)
         )
         
         # Create density head
@@ -324,9 +327,8 @@ class NeuralRadianceField(torch.nn.Module):
     
         # Create color MLP
         self.mlp_color = MLPWithInputSkips(
-            n_layers=2,  # Smaller network for color
-            # input_dim=cfg.n_hidden_neurons_xyz + self.embedding_dim_dir,  # Features + view directions
-            input_dim=cfg.n_hidden_neurons_xyz, # NOTE: For now, NeRF MLP does not need to handle view dependence, and can solely depend on 3D position.
+            n_layers=1,  # Single layer network as shown in paper
+            input_dim=cfg.n_hidden_neurons_xyz + self.embedding_dim_dir,  # 256 + view_dir_embedding
             output_dim=3,  # RGB colors
             skip_dim=0,  # No skip connections for color network
             hidden_dim=cfg.n_hidden_neurons_dir,
@@ -335,10 +337,12 @@ class NeuralRadianceField(torch.nn.Module):
         
         # Store density noise std
         self.density_noise_std = cfg.density_noise_std
+        self.use_view_dirs = cfg.use_view_dirs if hasattr(cfg, 'use_view_dirs') else True
 
     def init_weights(self):
         self.mlp_xyz.init_weights()
         self.mlp_color.init_weights()
+
        
     def forward(self, ray_bundle):
         # Get sample points and view directions
@@ -354,19 +358,29 @@ class NeuralRadianceField(torch.nn.Module):
         
         # Get density from features
         density = self.density_head(features) # NOTE: [debug]density is all negative now !!
-        
-        # Add noise to density during training if specified
+      
+        # Apply ReLU to get final density
+        density = torch.relu(density)
+
+        # 0311: Add noise **after** ReLU to avoid zero density
+        # NOTE: only add noise during training
         if self.training and self.density_noise_std > 0:
             density = density + torch.randn_like(density) * self.density_noise_std
-            
-        # Apply ReLU to get final density
-        density = torch.relu(density) 
-        
+            density = torch.relu(density)
+        if torch.sum(density) == 0:
+            print(f"density is 0 during self.training: {self.training}")
+
         # Get colors by concatenating features and view directions
-        
-        # color_input = torch.cat([features, dir_embedding], dim=-1)
-        # TODO: For now, NeRF MLP does not need to handle view dependence, and can solely depend on 3D position.
-        color_input = features
+        if self.use_view_dirs:
+            # dir_embedding: [batch_size, 24]
+            # features: [batch_size * num_samples, 256]
+            # Repeat dir_embedding for each sample
+            n_pts_per_ray = features.shape[0]//dir_embedding.shape[0]
+            dir_embedding = dir_embedding.repeat_interleave(n_pts_per_ray, dim=0)
+            color_input = torch.cat([features, dir_embedding], dim=-1)
+        else:
+            color_input = features
+            
         raw_colors = self.mlp_color(color_input, None)  # No skip connections for color
         colors = torch.sigmoid(raw_colors)  # Ensure colors are in [0,1]
         
