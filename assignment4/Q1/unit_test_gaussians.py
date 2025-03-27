@@ -122,7 +122,7 @@ def run_test_2():
     ]).to(torch.float32)
 
     your_answer = gaussians.compute_cov_2D(means_3D, quats, scales, camera, img_size)
-
+    print(your_answer)
     return torch.all(torch.isclose(your_answer, gt_answer, rtol=1e-4, atol=1e-8))
 
 def run_test_3():
@@ -228,7 +228,7 @@ def run_test_4():
 
     cov_2D_inverse = Gaussians.invert_cov_2D(cov_2D)
     your_answer = Gaussians.evaluate_gaussian_2D(points_2D, means_2D, cov_2D_inverse)
-
+    print(your_answer)
     return torch.all(torch.isclose(your_answer, gt_answer, rtol=1e-4, atol=1e-8))
 
 def run_tests():
