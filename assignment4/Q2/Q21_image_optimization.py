@@ -10,6 +10,7 @@ from SDS import SDS
 from tqdm import tqdm
 from utils import get_cosine_schedule_with_warmup, prepare_embeddings, seed_everything
 
+from torch.autograd import Variable
 
 def optimize_an_image(
     sds,
@@ -23,6 +24,8 @@ def optimize_an_image(
     Optimize an image to match the prompt.
     """
     # Step 1. Create text embeddings from prompt
+    print("Prompt: ", prompt)
+    print("Neg Prompt: ", neg_prompt)
     embeddings = prepare_embeddings(sds, prompt, neg_prompt, view_dependent=False)
     sds.text_encoder.to("cpu")  # free up GPU memory
     torch.cuda.empty_cache()
@@ -39,13 +42,26 @@ def optimize_an_image(
     for i in tqdm(range(total_iter)):
         optimizer.zero_grad()
         # Forward pass to compute the loss
-        
         ### YOUR CODE HERE ###
         if args.sds_guidance:
-            loss = 
+            # With guidance: use both conditional and unconditional embeddings
+            loss = sds.sds_loss(
+                latents=latents,
+                text_embeddings=embeddings["default"],
+                text_embeddings_uncond=embeddings["uncond"],
+                guidance_scale=100,  # High guidance scale for stronger text alignment
+                grad_scale=1
+            )
         else:
-            loss = 
-
+            # Without guidance: use only conditional embeddings
+            loss = sds.sds_loss(
+                latents=latents,
+                text_embeddings=embeddings["default"],
+                text_embeddings_uncond=None,  # No unconditional embeddings
+                guidance_scale=1,  # No guidance
+                grad_scale=1
+            )
+        # loss = Variable(loss, requires_grad=True)
         # Backward pass
         loss.backward()
         optimizer.step()
@@ -61,7 +77,7 @@ def optimize_an_image(
             output_im = Image.fromarray(img.astype("uint8"))
             output_path = os.path.join(
                 sds.output_dir,
-                f"output_{prompt[0].replace(' ', '_')}_iter_{i}.png",
+                f"output_guidance={args.sds_guidance}_{prompt[0].replace(' ', '_')}_iter_{i}.png",
             )
             output_im.save(output_path)
 
@@ -103,6 +119,6 @@ if __name__ == "__main__":
 
     # save the output image
     img = Image.fromarray(img.astype("uint8"))
-    output_path = os.path.join(output_dir, f"output.png")
+    output_path = os.path.join(output_dir, f"2.1_{args.prompt.replace(' ', '_')}_{args.sds_guidance}.png")
     print(f"Saving image to {output_path}")
     img.save(output_path)

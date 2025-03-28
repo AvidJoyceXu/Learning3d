@@ -151,19 +151,27 @@ class SDS:
         # predict the noise residual with unet, NO grad!
         with torch.no_grad():
             ### YOUR CODE HERE ###
- 
+            # First predict the noise residual with conditional prompt
+            noise = torch.randn_like(latents)
+            noisy_latents = self.scheduler.add_noise(latents, noise, t)
+            noise_pred = self.unet(noisy_latents, t, encoder_hidden_states=text_embeddings).sample
 
             if text_embeddings_uncond is not None and guidance_scale != 1:
                 ### YOUR CODE HERE ###
-                pass
- 
+                # Then predict the noise residual with unconditional prompt and apply guidance
+                noise_pred_uncond = self.unet(noisy_latents, t, encoder_hidden_states=text_embeddings_uncond).sample
+                # Apply classifier-free guidance: mix conditional and unconditional predictions
+                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred - noise_pred_uncond)
 
-
+            target = latents + noise_pred - noise
         # Compute SDS loss
         w = 1 - self.alphas[t]
         ### YOUR CODE HERE ###
-
-
-        loss = 
+        # Compute gradient for score distillation
+        # The loss is the weighted L2 distance between predicted and true noise
+        # import ipdb; ipdb.set_trace()
+        # grad = w[:, None, None, None] * (noise_pred - noise)
+        grad = w[:, None, None, None] * (target - latents)
+        loss = - grad_scale * (grad ** 2).mean()
 
         return loss
