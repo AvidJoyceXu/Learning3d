@@ -80,7 +80,21 @@ def optimize_mesh_texture(
     ### YOUR CODE HERE ###
     # create a list of query cameras as the training set
     # Note: to create the dataset, you can either pre-define a list of query cameras as below or randomly sample a camera pose on the fly in the training loop.
-    query_cameras = [] # optional
+    query_cameras = []
+    # Create a set of cameras at different angles around the mesh
+    dist = 3.0  # Distance from camera to mesh
+    elev = torch.linspace(0, 360, 8)  # 8 different elevation angles
+    azim = torch.linspace(0, 360, 8)  # 8 different azimuth angles
+    
+    for e in elev:
+        for a in azim:
+            R, T = look_at_view_transform(dist=dist, elev=e, azim=a)
+            camera = FoVPerspectiveCameras(
+                R=R, T=T, 
+                fov=60,
+                device=device
+            )
+            query_cameras.append(camera)
 
     # Step 4. Create optimizer training parameters
     optimizer = torch.optim.AdamW(color_field.parameters(), lr=5e-4, weight_decay=0)
@@ -97,16 +111,29 @@ def optimize_mesh_texture(
         mesh.textures = TexturesVertex(verts_features=color_field(vertices))
 
         ### YOUR CODE HERE ###
-
         # Forward pass
         # Render a randomly sampled camera view to optimize in this iteration
-        rend = 
+        # Randomly select a camera from our predefined set
+        camera_idx = torch.randint(0, len(query_cameras), (1,))
+        camera = query_cameras[camera_idx]
+        
+        # Render the mesh from this camera view
+        rend = renderer(mesh, cameras=camera)
+        rendered_image = rend[0, ..., :3]  # (H, W, 3)
+        
         # Encode the rendered image to latents
-        latents = 
-        # Compute the loss
-        loss =
-
-
+        # Need to reshape and normalize the image for the VAE
+        rendered_image = rendered_image.permute(2, 0, 1).unsqueeze(0)  # (1, 3, H, W)
+        latents = sds.encode_imgs(rendered_image)
+        
+        # Compute the loss using SDS
+        loss = sds.sds_loss(
+            latents=latents,
+            text_embeddings=embeddings["default"],
+            text_embeddings_uncond=embeddings["uncond"],
+            guidance_scale=100,
+            grad_scale=1
+        )
 
         # Backward pass
         loss.backward()
