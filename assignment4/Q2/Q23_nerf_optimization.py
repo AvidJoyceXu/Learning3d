@@ -30,7 +30,7 @@ def optimize_nerf(
     """
 
     # Step 1. Create text embeddings from prompt
-    embeddings = prepare_embeddings(sds, prompt, neg_prompt, view_dependent=False)
+    embeddings = prepare_embeddings(sds, prompt, neg_prompt, view_dependent=True)
 
     # Step 2. Set up NeRF model
     model = NeRFNetwork(args).to(device)
@@ -93,6 +93,7 @@ def optimize_nerf(
             rays_o = data["rays_o"]  # [B, N, 3]
             rays_d = data["rays_d"]  # [B, N, 3]
             mvp = data["mvp"]  # [B, 4, 4]
+            azimuth = data["azimuth"]  # [-180, 180]
 
             B, N = rays_o.shape[:2]
             H, W = data["H"], data["W"]
@@ -106,6 +107,7 @@ def optimize_nerf(
                 rays_o = rays_o[choice]
                 rays_d = rays_d[choice]
                 mvp = mvp[choice]
+                azimuth = azimuth[choice]
 
             # Set the shading and background color for rendering
             if exp_iter_ratio <= args.latent_iter_ratio:
@@ -153,17 +155,26 @@ def optimize_nerf(
 
             # Compuate the loss
             # interpolate text_z
-            azimuth = data["azimuth"]  # [-180, 180]
-            assert azimuth.shape[0] == 1, "Batch size should be 1"
             text_uncond = embeddings["uncond"]
 
             if not args.view_dep_text:
                 text_cond = embeddings["default"]
             else:
                 ### YOUR CODE HERE ###
-                text_cond = embeddings["view"]
+                # Get azimuth angle in degrees [-180, 180]
+                theta = azimuth.item()  # extract scalar value
+                
+                # Map azimuth to the nearest view embedding
+                # front view: -45 to 45 degrees
+                # side view: 45 to 135 degrees and -135 to -45 degrees
+                # back view: 135 to 180 degrees and -180 to -135 degrees
+                if -45 <= theta <= 45:
+                    text_cond = embeddings["front"]
+                elif (45 < theta <= 135) or (-135 <= theta < -45):
+                    text_cond = embeddings["side"]
+                else:  # 135 < theta <= 180 or -180 <= theta < -135
+                    text_cond = embeddings["back"]
 
-            ### YOUR CODE HERE ###
             # Encode the rendered RGB image to latents
             # NOTE: upsample the image to 512x512
             pred_rgb = F.interpolate(pred_rgb, size=(512, 512), mode='bilinear', align_corners=False)
@@ -242,6 +253,7 @@ def optimize_nerf(
                     rays_o = data["rays_o"]  # [B, N, 3]
                     rays_d = data["rays_d"]  # [B, N, 3]
                     mvp = data["mvp"]
+                    azimuth = data["azimuth"]  # [-180, 180]
 
                     B, N = rays_o.shape[:2]
                     H, W = data["H"], data["W"]
