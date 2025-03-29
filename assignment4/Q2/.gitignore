@@ -1,6 +1,6 @@
-freqencoder
-gridencoder
-nerf
+freqencoder/
+gridencoder/
+nerf/
 log.txt
 *.sh
 *.pyc

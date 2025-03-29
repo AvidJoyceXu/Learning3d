@@ -14,6 +14,7 @@ from optimizer import Adan
 from PIL import Image
 from SDS import SDS
 from utils import prepare_embeddings, seed_everything
+import torch.nn.functional as F
 
 
 def optimize_nerf(
@@ -160,12 +161,22 @@ def optimize_nerf(
                 text_cond = embeddings["default"]
             else:
                 ### YOUR CODE HERE ###
-                pass
+                text_cond = embeddings["view"]
 
-  
             ### YOUR CODE HERE ###
-            latents = 
-            loss = 
+            # Encode the rendered RGB image to latents
+            # NOTE: upsample the image to 512x512
+            pred_rgb = F.interpolate(pred_rgb, size=(512, 512), mode='bilinear', align_corners=False)
+            latents = sds.encode_imgs(pred_rgb)
+            
+            # Compute the SDS loss with guidance
+            loss = sds.sds_loss(
+                latents=latents,
+                text_embeddings=text_cond,
+                text_embeddings_uncond=text_uncond,
+                guidance_scale=100,
+                grad_scale=1
+            )
 
             # regularizations
             if args.lambda_entropy > 0:
@@ -292,6 +303,10 @@ def optimize_nerf(
 
 
 if __name__ == "__main__":
+    # Suppress warnings
+    import warnings
+    warnings.filterwarnings("ignore")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", type=str, default="a hamburger")
     parser.add_argument("--seed", type=int, default=42)
