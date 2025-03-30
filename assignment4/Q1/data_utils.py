@@ -209,6 +209,123 @@ def colours_from_spherical_harmonics(spherical_harmonics, gaussian_dirs):
         colours                 :   A torch.Tensor of shape (N, 3) representing the view dependent
                                     RGB colour.
     """
-    ### YOUR CODE HERE ###
-    colours = None
+    # SH coefficients for degree 0, 1, 2, 3 (for a total of 16 coefficients per color channel)
+    # Each color channel (R,G,B) has 16 coefficients, so total is 48
+    
+    # Extract directions
+    x, y, z = gaussian_dirs[:, 0], gaussian_dirs[:, 1], gaussian_dirs[:, 2]
+    
+    # Degree 0 (1 coefficient per channel)
+    # Constant term (Y_0^0)
+    C0 = 0.28209479177387814  # 1/2 * sqrt(1/pi)
+    
+    # Degree 1 (3 coefficients per channel)
+    # Y_1^-1, Y_1^0, Y_1^1
+    C1 = 0.4886025119029199   # sqrt(3)/2 * sqrt(1/pi)
+    
+    # Degree 2 (5 coefficients per channel)
+    # Y_2^-2, Y_2^-1, Y_2^0, Y_2^1, Y_2^2
+    C2_0 = 0.9461746957575601  # sqrt(5)/(2*sqrt(pi))
+    C2_1 = 1.0925484305920792  # sqrt(15)/2 * sqrt(1/pi)
+    C2_2 = 0.31539156525252005 # sqrt(15/4) * sqrt(1/pi)
+    
+    # Degree 3 (7 coefficients per channel)
+    # Y_3^-3, Y_3^-2, Y_3^-1, Y_3^0, Y_3^1, Y_3^2, Y_3^3
+    C3_0 = 0.5900435899266435   # sqrt(7)/(2*sqrt(pi))
+    C3_1 = 2.890611442640554    # sqrt(21/4) * sqrt(1/pi)
+    C3_2 = 0.4570457994644658   # sqrt(105)/4 * sqrt(1/pi)
+    C3_3 = 0.3731763325901154   # sqrt(35/4) * sqrt(1/pi)
+    
+    # Initialize result tensor for all channels
+    num_gaussians = spherical_harmonics.shape[0]
+    result = torch.zeros((num_gaussians, 3), device=spherical_harmonics.device)
+    
+    # Degree 0: constant
+    result[:, 0] += C0 * spherical_harmonics[:, 0]
+    result[:, 1] += C0 * spherical_harmonics[:, 1]
+    result[:, 2] += C0 * spherical_harmonics[:, 2]
+    
+    # Degree 1: linear
+    # Y_1^-1
+    result[:, 0] += -C1 * y * spherical_harmonics[:, 3]
+    result[:, 1] += -C1 * y * spherical_harmonics[:, 4]
+    result[:, 2] += -C1 * y * spherical_harmonics[:, 5]
+    
+    # Y_1^0
+    result[:, 0] += C1 * z * spherical_harmonics[:, 6]
+    result[:, 1] += C1 * z * spherical_harmonics[:, 7]
+    result[:, 2] += C1 * z * spherical_harmonics[:, 8]
+    
+    # Y_1^1
+    result[:, 0] += -C1 * x * spherical_harmonics[:, 9]
+    result[:, 1] += -C1 * x * spherical_harmonics[:, 10]
+    result[:, 2] += -C1 * x * spherical_harmonics[:, 11]
+    
+    # Degree 2: quadratic
+    # Y_2^-2
+    result[:, 0] += C2_0 * x * y * spherical_harmonics[:, 12]
+    result[:, 1] += C2_0 * x * y * spherical_harmonics[:, 13]
+    result[:, 2] += C2_0 * x * y * spherical_harmonics[:, 14]
+    
+    # Y_2^-1
+    result[:, 0] += -C2_0 * y * z * spherical_harmonics[:, 15]
+    result[:, 1] += -C2_0 * y * z * spherical_harmonics[:, 16]
+    result[:, 2] += -C2_0 * y * z * spherical_harmonics[:, 17]
+    
+    # Y_2^0
+    result[:, 0] += C2_1 * (3 * z * z - 1) * spherical_harmonics[:, 18]
+    result[:, 1] += C2_1 * (3 * z * z - 1) * spherical_harmonics[:, 19]
+    result[:, 2] += C2_1 * (3 * z * z - 1) * spherical_harmonics[:, 20]
+    
+    # Y_2^1
+    result[:, 0] += -C2_0 * x * z * spherical_harmonics[:, 21]
+    result[:, 1] += -C2_0 * x * z * spherical_harmonics[:, 22]
+    result[:, 2] += -C2_0 * x * z * spherical_harmonics[:, 23]
+    
+    # Y_2^2
+    result[:, 0] += C2_2 * (x * x - y * y) * spherical_harmonics[:, 24]
+    result[:, 1] += C2_2 * (x * x - y * y) * spherical_harmonics[:, 25]
+    result[:, 2] += C2_2 * (x * x - y * y) * spherical_harmonics[:, 26]
+    
+    # Degree 3
+    # Higher order terms, from 27 to 47 index
+    if spherical_harmonics.shape[1] > 27:
+        # Y_3^-3
+        result[:, 0] += -C3_0 * y * (3 * x * x - y * y) * spherical_harmonics[:, 27]
+        result[:, 1] += -C3_0 * y * (3 * x * x - y * y) * spherical_harmonics[:, 28]
+        result[:, 2] += -C3_0 * y * (3 * x * x - y * y) * spherical_harmonics[:, 29]
+        
+        # Y_3^-2
+        result[:, 0] += C3_1 * x * y * z * spherical_harmonics[:, 30]
+        result[:, 1] += C3_1 * x * y * z * spherical_harmonics[:, 31]
+        result[:, 2] += C3_1 * x * y * z * spherical_harmonics[:, 32]
+        
+        # Y_3^-1
+        result[:, 0] += -C3_2 * y * (5 * z * z - 1) * spherical_harmonics[:, 33]
+        result[:, 1] += -C3_2 * y * (5 * z * z - 1) * spherical_harmonics[:, 34]
+        result[:, 2] += -C3_2 * y * (5 * z * z - 1) * spherical_harmonics[:, 35]
+        
+        # Y_3^0
+        result[:, 0] += C3_3 * z * (5 * z * z - 3) * spherical_harmonics[:, 36]
+        result[:, 1] += C3_3 * z * (5 * z * z - 3) * spherical_harmonics[:, 37]
+        result[:, 2] += C3_3 * z * (5 * z * z - 3) * spherical_harmonics[:, 38]
+        
+        # Y_3^1
+        result[:, 0] += -C3_2 * x * (5 * z * z - 1) * spherical_harmonics[:, 39]
+        result[:, 1] += -C3_2 * x * (5 * z * z - 1) * spherical_harmonics[:, 40]
+        result[:, 2] += -C3_2 * x * (5 * z * z - 1) * spherical_harmonics[:, 41]
+        
+        # Y_3^2
+        result[:, 0] += C3_1 * z * (x * x - y * y) * spherical_harmonics[:, 42]
+        result[:, 1] += C3_1 * z * (x * x - y * y) * spherical_harmonics[:, 43]
+        result[:, 2] += C3_1 * z * (x * x - y * y) * spherical_harmonics[:, 44]
+        
+        # Y_3^3
+        result[:, 0] += -C3_0 * x * (x * x - 3 * y * y) * spherical_harmonics[:, 45]
+        result[:, 1] += -C3_0 * x * (x * x - 3 * y * y) * spherical_harmonics[:, 46]
+        result[:, 2] += -C3_0 * x * (x * x - 3 * y * y) * spherical_harmonics[:, 47]
+    
+    # Apply color adjustment to map from [-1,1] to [0,1]
+    colours = torch.clamp(result + 0.5, 0.0, 1.0)
+    
     return colours
