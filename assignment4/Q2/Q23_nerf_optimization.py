@@ -13,8 +13,10 @@ from nerf.provider import NeRFDataset
 from optimizer import Adan
 from PIL import Image
 from SDS import SDS
+from pixel_space_sds import PixelSpaceSDS
 from utils import prepare_embeddings, seed_everything
 import torch.nn.functional as F
+
 
 
 def optimize_nerf(
@@ -181,14 +183,23 @@ def optimize_nerf(
             latents = sds.encode_imgs(pred_rgb)
             
             # Compute the SDS loss with guidance
-            loss = sds.sds_loss(
-                latents=latents,
-                text_embeddings=text_cond,
-                text_embeddings_uncond=text_uncond,
-                guidance_scale=100,
-                grad_scale=1
-            )
-
+            if args.SDS_type == 'PixelSpaceSDS':
+                loss = sds.sds_loss(
+                    img = pred_rgb,
+                    latents=latents,
+                    text_embeddings=text_cond,
+                    text_embeddings_uncond=text_uncond,
+                    guidance_scale=100,
+                    grad_scale=1
+                )
+            else:
+                loss = sds.sds_loss(
+                    latents=latents,
+                    text_embeddings=text_cond,
+                    text_embeddings_uncond=text_uncond,
+                    guidance_scale=100,
+                    grad_scale=1
+                )
             # regularizations
             if args.lambda_entropy > 0:
                 alphas = outputs["weights"].clamp(1e-5, 1 - 1e-5)
@@ -325,6 +336,8 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, default="output")
     parser.add_argument("--loss_scaling", type=int, default=1)
 
+    parser.add_argument('--SDS_type', type=str, default='SDS', help="SDS type")
+
     ### YOUR CODE HERE ###
     # You wil need to tune the following parameters to obtain good NeRF results
     ### regularizations
@@ -360,7 +373,21 @@ if __name__ == "__main__":
 
     # initialize SDS
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    sds = SDS(sd_version="2.1", device=device, output_dir=output_dir)
+
+    # Use PixelSpaceSDS for pixel-space SDS loss
+    if args.SDS_type == 'PixelSpaceSDS':
+        print(f"Using PixelSpaceSDS for SDS loss")
+        sds = PixelSpaceSDS(
+            sd_version="2.1",
+            device=device,
+            output_dir=output_dir,
+            use_lpips=True,
+            # pixel_loss_weight=1.0,
+            # perceptual_loss_weight=0.8,
+        )
+    else:
+        print(f"Using latent space SDS for SDS loss")
+        sds = SDS(sd_version="2.1", device=device, output_dir=output_dir)
 
     # optimize a NeRF model
     start_time = time.time()

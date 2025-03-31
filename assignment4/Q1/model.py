@@ -660,15 +660,15 @@ class Scene:
         means_3D = self.gaussians.means[idxs]
 
         # For questions 1.1, 1.2 and 1.3.2, use the below line of code for colours.
-        # colours = self.gaussians.colours[idxs]
+        colours = self.gaussians.colours[idxs]
 
         # [Q 1.3.1] For question 1.3.1, uncomment the below three lines to calculate the
         # colours instead of using self.gaussians.colours[idxs]. You may also comment
         # out the above line of code since it will be overwritten anyway.
 
-        spherical_harmonics = self.gaussians.spherical_harmonics[idxs]
-        gaussian_dirs = self.calculate_gaussian_directions(means_3D, camera)
-        colours = colours_from_spherical_harmonics(spherical_harmonics, gaussian_dirs)
+        # spherical_harmonics = self.gaussians.spherical_harmonics[idxs]
+        # gaussian_dirs = self.calculate_gaussian_directions(means_3D, camera)
+        # colours = colours_from_spherical_harmonics(spherical_harmonics, gaussian_dirs)
 
         # Apply activations
         quats, scales, opacities = self.gaussians.apply_activations(

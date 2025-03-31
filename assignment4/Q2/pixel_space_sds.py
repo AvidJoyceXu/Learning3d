@@ -1,19 +1,22 @@
 import torch
 import torch.nn.functional as F
 from diffusers import DDIMScheduler, StableDiffusionPipeline
+import lpips
 from torchvision.transforms import Resize, Compose, Normalize, InterpolationMode
 
-class SDS:
-    """
-    Class to implement the SDS loss function.
-    """
 
+
+class PixelSpaceSDS:
+    """
+    Class to implement the SDS loss function in pixel space.
+    """
     def __init__(
         self,
         sd_version="2.1",
         device="cpu",
         t_range=[0.02, 0.98],
         output_dir="output",
+        use_lpips=True,
     ):
         """
         Load the Stable Diffusion model and set the parameters.
@@ -22,7 +25,8 @@ class SDS:
             sd_version (str): version for stable diffusion model
             device (_type_): _description_
         """
-
+        self.use_lpips = use_lpips
+        self.lpips_loss = lpips.LPIPS(net='alex', version='0.1').to(device)
         # Set the stable diffusion model key based on the version
         if sd_version == "2.1":
             sd_model_key = "stabilityai/stable-diffusion-2-1-base"
@@ -124,6 +128,7 @@ class SDS:
 
     def sds_loss(
         self,
+        img,
         latents,
         text_embeddings,
         text_embeddings_uncond=None,
@@ -131,7 +136,7 @@ class SDS:
         grad_scale=1,
     ):
         """
-        Compute the SDS loss.
+        Compute the SDS loss in pixel space.
 
         Args:
             latents (tensor): input latents, shape [1, 4, 64, 64]
@@ -153,30 +158,29 @@ class SDS:
             device=self.device,
         )
 
+        noise = torch.randn_like(latents)
+        noisy_latents = self.scheduler.add_noise(latents, noise, t)
+        # NOTE: How to denoise the latents?
+        # import ipdb; ipdb.set_trace()
+        denoised_latent = noisy_latents
+        for timestep in self.scheduler.timesteps[t:]:
+            noise_pred = self.unet(noisy_latents, timestep, encoder_hidden_states=text_embeddings).sample
+            denoised_latent = self.scheduler.step(noise_pred, timestep, denoised_latent)['prev_sample']
+
         # predict the noise residual with unet, NO grad!
         with torch.no_grad():
-            ### YOUR CODE HERE ###
-            # First predict the noise residual with conditional prompt
-            noise = torch.randn_like(latents)
-            noisy_latents = self.scheduler.add_noise(latents, noise, t)
-            noise_pred = self.unet(noisy_latents, t, encoder_hidden_states=text_embeddings).sample
+            target_x = self.decode_latents(denoised_latent)
 
-            if text_embeddings_uncond is not None and guidance_scale != 1:
-                ### YOUR CODE HERE ###
-                # Then predict the noise residual with unconditional prompt and apply guidance
-                noise_pred_uncond = self.unet(noisy_latents, t, encoder_hidden_states=text_embeddings_uncond).sample
-                # Apply classifier-free guidance: mix conditional and unconditional predictions
-                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred - noise_pred_uncond)
+            print(min(target_x), max(target_x))
 
-            target = latents + noise_pred - noise
-        # Compute SDS loss
-        w = 1 - self.alphas[t]
-        ### YOUR CODE HERE ###
-        # Compute gradient for score distillation
-        # The loss is the weighted L2 distance between predicted and true noise
-        # import ipdb; ipdb.set_trace()
-        # grad = w[:, None, None, None] * (noise_pred - noise)
-        grad = w[:, None, None, None] * (target - latents)
-        loss = - grad_scale * (grad ** 2).mean()
+            target_x = torch.from_numpy(target_x).to(self.device)
+            target_x = target_x.permute(2, 0, 1).unsqueeze(0) # (512, 512, 3) -> (1, 3, 512, 512)
+
+        if self.use_lpips:
+            grad = w[:, None, None, None] * self.lpips_loss(target_x, img)
+        else:
+            grad = w[:, None, None, None] * F.mse_loss(noise_pred, noise)
+
+        loss = grad_scale * grad.mean()
 
         return loss
