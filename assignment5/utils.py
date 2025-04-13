@@ -8,6 +8,34 @@ from pytorch3d.renderer import (
     PointsRasterizer,
 )
 import imageio
+import numpy as np
+
+def rotate_point_cloud(points, angle_x=0, angle_y=0, angle_z=0):
+    """Rotate point cloud by given angles in degrees."""
+    # Convert angles to radians
+    angle_x = np.radians(angle_x)
+    angle_y = np.radians(angle_y)
+    angle_z = np.radians(angle_z)
+    
+    # Rotation matrices
+    Rx = np.array([[1, 0, 0],
+                   [0, np.cos(angle_x), -np.sin(angle_x)],
+                   [0, np.sin(angle_x), np.cos(angle_x)]])
+    
+    Ry = np.array([[np.cos(angle_y), 0, np.sin(angle_y)],
+                   [0, 1, 0],
+                   [-np.sin(angle_y), 0, np.cos(angle_y)]])
+    
+    Rz = np.array([[np.cos(angle_z), -np.sin(angle_z), 0],
+                   [np.sin(angle_z), np.cos(angle_z), 0],
+                   [0, 0, 1]])
+    
+    # Combined rotation matrix
+    R = Rz @ Ry @ Rx
+    
+    # Apply rotation
+    rotated_points = np.dot(points, R.T)
+    return rotated_points
 
 def save_checkpoint(epoch, model, args, best=False):
     if best:
@@ -76,7 +104,7 @@ def viz_seg (verts, labels, path, device):
     for i in range(6):
         sample_colors[sample_labels==i] = torch.tensor(colors[i])
 
-    sample_colors = sample_colors.repeat(30,1,1).to(torch.float)
+    sample_colors = sample_colors.repeat(30,1,1).to(torch.float).to(device)
 
     point_cloud = pytorch3d.structures.Pointclouds(points=sample_verts, features=sample_colors).to(device)
 
