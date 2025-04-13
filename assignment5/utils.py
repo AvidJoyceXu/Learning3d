@@ -34,7 +34,7 @@ def rotate_point_cloud(points, angle_x=0, angle_y=0, angle_z=0):
     R = Rz @ Ry @ Rx
     
     # Apply rotation
-    rotated_points = np.dot(points, R.T)
+    rotated_points = np.dot(points, R.T).astype(np.float32)
     return rotated_points
 
 def save_checkpoint(epoch, model, args, best=False):
@@ -98,7 +98,8 @@ def viz_seg (verts, labels, path, device):
 
     sample_verts = verts.unsqueeze(0).repeat(30,1,1).to(torch.float)
     sample_labels = labels.unsqueeze(0)
-    sample_colors = torch.zeros((1,10000,3))
+    N = sample_verts.shape[1]
+    sample_colors = torch.zeros((1,N,3))
 
     # Colorize points based on segmentation labels
     for i in range(6):

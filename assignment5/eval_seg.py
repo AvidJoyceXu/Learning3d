@@ -3,7 +3,7 @@ import argparse
 import torch
 from models import seg_model
 from data_loader import get_data_loader
-from utils import create_dir, viz_seg
+from utils import create_dir, viz_seg, rotate_point_cloud
 import os
 
 
@@ -79,7 +79,7 @@ if __name__ == '__main__':
         print(f"Accuracy with {angle}° rotation: {accuracy:.4f}")
         
         # Visualize a few samples
-        if angle in [0, 90]:  # Visualize original and 90-degree rotation
+        if angle in [0, 30, 60, 90]:  # Visualize original and 90-degree rotation
             num_samples = 3
             indices = np.random.choice(len(rotated_data), num_samples, replace=False)
             for idx in indices:

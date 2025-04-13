@@ -6,35 +6,8 @@ import torch
 import torch.nn.functional as F
 torch.backends.cudnn.enabled = False
 from models import cls_model
-from utils import create_dir
+from utils import create_dir, rotate_point_cloud
 import os
-
-def rotate_point_cloud(points, angle_x=0, angle_y=0, angle_z=0):
-    """Rotate point cloud by given angles in degrees."""
-    # Convert angles to radians
-    angle_x = np.radians(angle_x)
-    angle_y = np.radians(angle_y)
-    angle_z = np.radians(angle_z)
-    
-    # Rotation matrices
-    Rx = np.array([[1, 0, 0],
-                   [0, np.cos(angle_x), -np.sin(angle_x)],
-                   [0, np.sin(angle_x), np.cos(angle_x)]])
-    
-    Ry = np.array([[np.cos(angle_y), 0, np.sin(angle_y)],
-                   [0, 1, 0],
-                   [-np.sin(angle_y), 0, np.cos(angle_y)]])
-    
-    Rz = np.array([[np.cos(angle_z), -np.sin(angle_z), 0],
-                   [np.sin(angle_z), np.cos(angle_z), 0],
-                   [0, 0, 1]])
-    
-    # Combined rotation matrix
-    R = Rz @ Ry @ Rx
-    
-    # Apply rotation
-    rotated_points = np.dot(points, R.T)
-    return rotated_points
 
 def visualize_point_cloud(points, title, save_path=None):
     """Visualize a single point cloud."""
@@ -86,6 +59,7 @@ if __name__ == '__main__':
 
     # ------ TO DO: Initialize Model for Classification Task ------
     model = cls_model(num_classes=args.num_cls_class).to(args.device)
+    class_names = ['chair', 'vase', 'lamp']
     
     # Load Model Checkpoint
     model_path = './checkpoints/cls/{}.pt'.format(args.load_checkpoint)
@@ -123,7 +97,7 @@ if __name__ == '__main__':
         print(f"Accuracy with {angle}° rotation: {accuracy:.4f}")
         
         # Visualize a few samples
-        if angle in [0, 90]:  # Visualize original and 90-degree rotation
+        if angle in rotation_angles:  # Visualize original and 90-degree rotation
             num_samples = 3
             indices = np.random.choice(len(rotated_data), num_samples, replace=False)
             for idx in indices:
@@ -193,7 +167,6 @@ if __name__ == '__main__':
     print("test accuracy: {}".format(test_accuracy))
 
     # Visualize random samples
-    class_names = ['chair', 'vase', 'lamp']
     num_samples = 3
     indices = np.random.choice(len(test_data), num_samples, replace=False)
     
