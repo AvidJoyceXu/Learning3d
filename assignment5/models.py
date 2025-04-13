@@ -6,7 +6,26 @@ import torch.nn.functional as F
 class cls_model(nn.Module):
     def __init__(self, num_classes=3):
         super(cls_model, self).__init__()
-        pass
+        
+        # Feature extraction layers
+        self.conv1 = nn.Conv1d(3, 64, 1)
+        self.conv2 = nn.Conv1d(64, 128, 1)
+        self.conv3 = nn.Conv1d(128, 256, 1)
+        
+        # Batch normalization layers
+        self.bn1 = nn.BatchNorm1d(64)
+        self.bn2 = nn.BatchNorm1d(128)
+        self.bn3 = nn.BatchNorm1d(256)
+        
+        # Classification MLP
+        self.fc1 = nn.Linear(256, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, num_classes)
+        
+        self.bn4 = nn.BatchNorm1d(128)
+        self.bn5 = nn.BatchNorm1d(64)
+        
+        self.dropout = nn.Dropout(p=0.3)
 
     def forward(self, points):
         '''
@@ -14,9 +33,25 @@ class cls_model(nn.Module):
                 , where B is batch size and N is the number of points per object (N=10000 by default)
         output: tensor of size (B, num_classes)
         '''
-        pass
-
-
+        # Convert points to (B, 3, N) for conv1d
+        x = points.transpose(2, 1)
+        
+        # Feature extraction
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        
+        # Global max pooling
+        x = torch.max(x, 2)[0]
+        
+        # MLP for classification
+        x = F.relu(self.bn4(self.fc1(x)))
+        x = self.dropout(x)
+        x = F.relu(self.bn5(self.fc2(x)))
+        x = self.dropout(x)
+        x = self.fc3(x)
+        
+        return x
 
 # ------ TO DO ------
 class seg_model(nn.Module):
