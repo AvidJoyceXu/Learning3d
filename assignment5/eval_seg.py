@@ -49,7 +49,10 @@ if __name__ == '__main__':
         model = PointNet2SegSSG(num_seg_classes=args.num_seg_class, normal_channel=args.normal_channel).to(args.device)
     
     # Load Model Checkpoint
-    model_path = './checkpoints/seg/{}.pt'.format(args.load_checkpoint)
+    if args.model_type == "pointnet2":
+        model_path = './checkpoints/seg_pointnet2/{}.pt'.format(args.load_checkpoint)
+    else:
+        model_path = './checkpoints/seg/{}.pt'.format(args.load_checkpoint)
     with open(model_path, 'rb') as f:
         state_dict = torch.load(f, map_location=args.device)
         model.load_state_dict(state_dict)

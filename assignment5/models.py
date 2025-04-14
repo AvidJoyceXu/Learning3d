@@ -462,12 +462,11 @@ class PointNet2SegSSG(nn.Module):
         self.sa4 = PointNetSetAbstraction(npoint=16, radius=0.8, nsample=32, in_channel=256 + 3, mlp=[256, 256, 512], group_all=False)
         
         # Feature propagation layers
-        # Correct the input channels for each feature propagation layer
-        # The input channels should match the concatenated features from the previous layers
+        # Match the architecture in the checkpoint
         self.fp4 = PointNetFeaturePropagation(in_channel=256+512, mlp=[256, 256])  # 256 from sa3 + 512 from sa4
         self.fp3 = PointNetFeaturePropagation(in_channel=128+256, mlp=[256, 256])  # 128 from sa2 + 256 from sa3
-        self.fp2 = PointNetFeaturePropagation(in_channel=64+128, mlp=[256, 128])   # 64 from sa1 + 128 from sa2
-        self.fp1 = PointNetFeaturePropagation(in_channel=3+64, mlp=[128, 128, 128, 128])  # 3 from xyz + 64 from sa1
+        self.fp2 = PointNetFeaturePropagation(in_channel=64+256, mlp=[256, 256])   # 64 from sa1 + 256 from fp3
+        self.fp1 = PointNetFeaturePropagation(in_channel=3+256, mlp=[128, 128])  # 3 from xyz + 256 from fp2
         
         # Final layers
         self.conv1 = nn.Conv1d(128, 128, 1)
@@ -500,29 +499,19 @@ class PointNet2SegSSG(nn.Module):
         l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)
         l4_xyz, l4_points = self.sa4(l3_xyz, l3_points)
         
-        # dbgprint shapes for debugging
-        dbgprint(f"l1_xyz: {l1_xyz.shape}, l1_points: {l1_points.shape}")
-        dbgprint(f"l2_xyz: {l2_xyz.shape}, l2_points: {l2_points.shape}")
-        dbgprint(f"l3_xyz: {l3_xyz.shape}, l3_points: {l3_points.shape}")
-        dbgprint(f"l4_xyz: {l4_xyz.shape}, l4_points: {l4_points.shape}")
-        
         # Feature Propagation layers
         l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points)
-        dbgprint(f"After fp4: l3_points: {l3_points.shape}")
-        
         l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)
-        dbgprint(f"After fp3: l2_points: {l2_points.shape}")
-        
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
-        dbgprint(f"After fp2: l1_points: {l1_points.shape}")
-        
         l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)
-        dbgprint(f"After fp1: l0_points: {l0_points.shape}")
         
-        # FC layers
+        # Final layers
         x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
         x = self.conv2(x)
-        x = x.permute(0, 2, 1)  # Convert back to [B, N, num_seg_classes]
+        
+        # Convert back to [B, N, num_seg_classes] format
+        x = x.permute(0, 2, 1)
+        
         return x
 
 

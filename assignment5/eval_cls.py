@@ -38,6 +38,7 @@ def create_parser():
     parser.add_argument('--num_points', type=int, default=10000, help='The number of points per object to be included in the input data')
     parser.add_argument('--model_type', type=str, default="pointnet", help='The model type: pointnet or pointnet2')
     parser.add_argument('--normal_channel', action='store_true', help='Use normal channel for PointNet++')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for processing data')
 
     # Directories and checkpoint/sample iterations
     parser.add_argument('--load_checkpoint', type=str, default='model_epoch_0')
@@ -82,6 +83,30 @@ if __name__ == '__main__':
     test_data = np.load(args.test_data)[:,ind,:]
     test_label = np.load(args.test_label)
 
+    # Function to process data in batches
+    def process_in_batches(data, labels, model, device, batch_size):
+        num_samples = len(data)
+        all_predictions = []
+        all_labels = []
+        
+        for i in range(0, num_samples, batch_size):
+            end_idx = min(i + batch_size, num_samples)
+            batch_data = torch.from_numpy(data[i:end_idx]).to(device)
+            batch_labels = torch.from_numpy(labels[i:end_idx]).to(device)
+            
+            with torch.no_grad():
+                predictions = model(batch_data)
+                pred_labels = torch.max(predictions, 1)[1]
+            
+            all_predictions.append(pred_labels.cpu())
+            all_labels.append(batch_labels.cpu())
+            
+            # Clear memory
+            del batch_data, batch_labels, predictions, pred_labels
+            torch.cuda.empty_cache()
+        
+        return torch.cat(all_predictions), torch.cat(all_labels)
+
     # Experiment 1: Rotation Analysis
     print("\n=== Experiment 1: Rotation Analysis ===")
     rotation_angles = [0, 30, 60, 90]  # degrees
@@ -91,16 +116,14 @@ if __name__ == '__main__':
         print(f"\nTesting with {angle} degrees rotation:")
         # Rotate all point clouds
         rotated_data = np.array([rotate_point_cloud(pc, angle_x=angle) for pc in test_data])
-        rotated_data = torch.from_numpy(rotated_data).to(args.device)
-        test_label_tensor = torch.from_numpy(test_label).to(args.device)
         
-        # Make predictions
-        with torch.no_grad():
-            predictions = model(rotated_data)
-            pred_label = torch.max(predictions, 1)[1]
+        # Process in batches
+        pred_label, test_label_tensor = process_in_batches(
+            rotated_data, test_label, model, args.device, args.batch_size
+        )
         
         # Compute accuracy
-        accuracy = pred_label.eq(test_label_tensor).cpu().sum().item() / test_label_tensor.size()[0]
+        accuracy = pred_label.eq(test_label_tensor).sum().item() / test_label_tensor.size()[0]
         rotation_results[angle] = accuracy
         print(f"Accuracy with {angle}° rotation: {accuracy:.4f}")
         
@@ -109,14 +132,17 @@ if __name__ == '__main__':
             num_samples = 3
             indices = np.random.choice(len(rotated_data), num_samples, replace=False)
             for idx in indices:
-                points = rotated_data[idx].cpu().numpy()
+                points = rotated_data[idx]
                 true_label = int(test_label_tensor[idx].item())
                 pred = int(pred_label[idx].item())
                 title = f"Rotation {angle}° - True: {class_names[true_label]}, Predicted: {class_names[pred]}"
                 save_path = os.path.join(args.output_dir, f"rotation_{angle}_{idx}.png")
                 visualize_point_cloud(points, title, save_path)
+        
+        # Clear memory
         del rotated_data, pred_label, test_label_tensor
         torch.cuda.empty_cache()
+    
     # Experiment 2: Point Density Analysis
     print("\n=== Experiment 2: Point Density Analysis ===")
     point_densities = [1000, 5000, 10000]  # number of points
@@ -126,16 +152,16 @@ if __name__ == '__main__':
         print(f"\nTesting with {num_points} points:")
         # Sample points
         ind = np.random.choice(10000, num_points, replace=False)
-        sampled_data = torch.from_numpy(np.load(args.test_data))[:,ind,:].to(args.device)
-        test_label_tensor = torch.from_numpy(np.load(args.test_label)).to(args.device)
+        sampled_data = np.load(args.test_data)[:,ind,:]
+        sampled_labels = np.load(args.test_label)
         
-        # Make predictions
-        with torch.no_grad():
-            predictions = model(sampled_data)
-            pred_label = torch.max(predictions, 1)[1]
+        # Process in batches
+        pred_label, test_label_tensor = process_in_batches(
+            sampled_data, sampled_labels, model, args.device, args.batch_size
+        )
         
         # Compute accuracy
-        accuracy = pred_label.eq(test_label_tensor).cpu().sum().item() / test_label_tensor.size()[0]
+        accuracy = pred_label.eq(test_label_tensor).sum().item() / test_label_tensor.size()[0]
         density_results[num_points] = accuracy
         print(f"Accuracy with {num_points} points: {accuracy:.4f}")
         
@@ -144,12 +170,16 @@ if __name__ == '__main__':
             num_samples = 3
             indices = np.random.choice(len(sampled_data), num_samples, replace=False)
             for idx in indices:
-                points = sampled_data[idx].cpu().numpy()
+                points = sampled_data[idx]
                 true_label = int(test_label_tensor[idx].item())
                 pred = int(pred_label[idx].item())
                 title = f"Points {num_points} - True: {class_names[true_label]}, Predicted: {class_names[pred]}"
                 save_path = os.path.join(args.output_dir, f"density_{num_points}_{idx}.png")
                 visualize_point_cloud(points, title, save_path)
+        
+        # Clear memory
+        del sampled_data, pred_label, test_label_tensor
+        torch.cuda.empty_cache()
 
     # Print summary of results
     print("\n=== Summary of Results ===")
@@ -162,17 +192,17 @@ if __name__ == '__main__':
         print(f"{points} points: {acc:.4f}")
 
     # Sample Points per Object
-    ind = np.random.choice(10000,args.num_points, replace=False)
-    test_data = torch.from_numpy((np.load(args.test_data))[:,ind,:])
-    test_label = torch.from_numpy(np.load(args.test_label)).to(args.device)
+    ind = np.random.choice(10000, args.num_points, replace=False)
+    test_data = np.load(args.test_data)[:,ind,:]
+    test_label = np.load(args.test_label)
 
-    # ------ TO DO: Make Prediction ------
-    with torch.no_grad():
-        predictions = model(test_data.to(args.device))
-        pred_label = torch.max(predictions, 1)[1]
+    # Process in batches
+    pred_label, test_label_tensor = process_in_batches(
+        test_data, test_label, model, args.device, args.batch_size
+    )
 
     # Compute Accuracy
-    test_accuracy = pred_label.eq(test_label.data).cpu().sum().item() / (test_label.size()[0])
+    test_accuracy = pred_label.eq(test_label_tensor).sum().item() / test_label_tensor.size()[0]
     print("test accuracy: {}".format(test_accuracy))
 
     # Visualize random samples
@@ -181,20 +211,20 @@ if __name__ == '__main__':
     
     print("\nVisualizing random samples:")
     for idx in indices:
-        points = test_data[idx].cpu().numpy()
-        true_label = int(test_label[idx].item())
+        points = test_data[idx]
+        true_label = int(test_label_tensor[idx].item())
         pred = int(pred_label[idx].item())
         title = f"True: {class_names[true_label]}, Predicted: {class_names[pred]}"
         visualize_point_cloud(points, title, save_path=os.path.join(args.output_dir, f"sample_{idx}.png"))
 
     # Find and visualize failure cases
-    failures = find_failure_cases(pred_label, test_label, test_data)
+    failures = find_failure_cases(pred_label, test_label_tensor, torch.from_numpy(test_data))
     
     print("\nAnalyzing failure cases:")
     for true_class in range(len(class_names)):
         if failures[true_class]:
             points, pred_class = failures[true_class][0]  # Take first failure case
-            points = points.cpu().numpy()
+            points = points.numpy()
             title = f"Failure Case - True: {class_names[true_class]}, Predicted: {class_names[pred_class]}"
             visualize_point_cloud(points, title, save_path=os.path.join(args.output_dir, f"failure_case_{true_class}_{pred_class}.png"))
             print(f"Found failure case for {class_names[true_class]}: misclassified as {class_names[pred_class]}")
