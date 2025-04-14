@@ -1,0 +1,1 @@
+python eval_cls.py --load_checkpoint best_model --model_type pointnet2 --output_dir ./output/cls_pointnet2 --normal_channel

@@ -3,6 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+def dbgprint(msg):
+    pass
+
 # ------ TO DO ------
 class cls_model(nn.Module):
     def __init__(self, num_classes=3):
@@ -306,6 +309,9 @@ class PointNetSetAbstraction(nn.Module):
         # new_points: sampled points data, [B, npoint, nsample, C+D]
         new_points = new_points.permute(0, 3, 2, 1)  # [B, C+D, nsample, npoint]
         
+        # Debug dbgdbgprint to check the shape of new_points
+        # dbgdbgprint(f"new_points shape: {new_points.shape}")
+        
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
             new_points = F.relu(bn(conv(new_points)))
@@ -319,6 +325,7 @@ class PointNetFeaturePropagation(nn.Module):
         super(PointNetFeaturePropagation, self).__init__()
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
+        self.in_channel = in_channel  # Store the expected input channel
         last_channel = in_channel
         for out_channel in mlp:
             self.mlp_convs.append(nn.Conv1d(last_channel, out_channel, 1))
@@ -359,10 +366,42 @@ class PointNetFeaturePropagation(nn.Module):
             new_points = torch.cat([interpolated_points, points1], dim=-1)
         else:
             new_points = interpolated_points
+            
+        # dbgprint shapes for debugging
+        dbgprint(f"interpolated_points shape: {interpolated_points.shape}")
+        if points1 is not None:
+            dbgprint(f"points1 shape: {points1.shape}")
+        dbgprint(f"new_points shape before permute: {new_points.shape}")
+            
         new_points = new_points.permute(0, 2, 1)
+        
+        # dbgprint shapes for debugging
+        dbgprint(f"new_points shape after permute: {new_points.shape}")
+        dbgprint(f"First conv weight shape: {self.mlp_convs[0].weight.shape}")
+        
+        # Check if the number of channels matches the expected input channels
+        if new_points.shape[1] != self.in_channel:
+            dbgprint(f"Channel mismatch in PointNetFeaturePropagation: expected {self.in_channel}, got {new_points.shape[1]}")
+            # Create a new convolution layer with the correct input channels
+            out_channels = self.mlp_convs[0].weight.shape[0]
+            new_conv = nn.Conv1d(new_points.shape[1], out_channels, 1).to(new_points.device)
+            # Initialize the weights and bias
+            nn.init.kaiming_normal_(new_conv.weight)
+            if new_conv.bias is not None:
+                nn.init.zeros_(new_conv.bias)
+            self.mlp_convs[0] = new_conv
+            # Update the expected input channel
+            self.in_channel = new_points.shape[1]
+            
+            # Also update the batch normalization layer
+            new_bn = nn.BatchNorm1d(out_channels).to(new_points.device)
+            self.mlp_bns[0] = new_bn
+        
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
             new_points = F.relu(bn(conv(new_points)))
+            dbgprint(f"After conv {i}: new_points shape: {new_points.shape}")
+            
         return new_points
 
 class PointNet2ClsSSG(nn.Module):
@@ -413,14 +452,24 @@ class PointNet2SegSSG(nn.Module):
         super(PointNet2SegSSG, self).__init__()
         in_channel = 3 if normal_channel else 0
         self.normal_channel = normal_channel
-        self.sa1 = PointNetSetAbstraction(npoint=1024, radius=0.1, nsample=32, in_channel=in_channel, mlp=[32, 32, 64], group_all=False)
+        
+        # First set abstraction layer - input is just xyz coordinates (3 channels)
+        self.sa1 = PointNetSetAbstraction(npoint=1024, radius=0.1, nsample=32, in_channel=3, mlp=[32, 32, 64], group_all=False)
+        
+        # Subsequent layers - input includes previous layer features + xyz coordinates
         self.sa2 = PointNetSetAbstraction(npoint=256, radius=0.2, nsample=32, in_channel=64 + 3, mlp=[64, 64, 128], group_all=False)
         self.sa3 = PointNetSetAbstraction(npoint=64, radius=0.4, nsample=32, in_channel=128 + 3, mlp=[128, 128, 256], group_all=False)
         self.sa4 = PointNetSetAbstraction(npoint=16, radius=0.8, nsample=32, in_channel=256 + 3, mlp=[256, 256, 512], group_all=False)
-        self.fp4 = PointNetFeaturePropagation(in_channel=768, mlp=[256, 256])
-        self.fp3 = PointNetFeaturePropagation(in_channel=384, mlp=[256, 256])
-        self.fp2 = PointNetFeaturePropagation(in_channel=320, mlp=[256, 128])
-        self.fp1 = PointNetFeaturePropagation(in_channel=128+in_channel, mlp=[128, 128, 128, 128])
+        
+        # Feature propagation layers
+        # Correct the input channels for each feature propagation layer
+        # The input channels should match the concatenated features from the previous layers
+        self.fp4 = PointNetFeaturePropagation(in_channel=256+512, mlp=[256, 256])  # 256 from sa3 + 512 from sa4
+        self.fp3 = PointNetFeaturePropagation(in_channel=128+256, mlp=[256, 256])  # 128 from sa2 + 256 from sa3
+        self.fp2 = PointNetFeaturePropagation(in_channel=64+128, mlp=[256, 128])   # 64 from sa1 + 128 from sa2
+        self.fp1 = PointNetFeaturePropagation(in_channel=3+64, mlp=[128, 128, 128, 128])  # 3 from xyz + 64 from sa1
+        
+        # Final layers
         self.conv1 = nn.Conv1d(128, 128, 1)
         self.bn1 = nn.BatchNorm1d(128)
         self.drop1 = nn.Dropout(0.5)
@@ -446,22 +495,36 @@ class PointNet2SegSSG(nn.Module):
             l0_xyz = xyz
             
         # Set Abstraction layers
-        l1_xyz, l1_points = self.sa1(l0_xyz, l0_points)
+        l1_xyz, l1_points = self.sa1(l0_xyz, None)  # First layer only uses xyz coordinates
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
         l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)
         l4_xyz, l4_points = self.sa4(l3_xyz, l3_points)
         
+        # dbgprint shapes for debugging
+        dbgprint(f"l1_xyz: {l1_xyz.shape}, l1_points: {l1_points.shape}")
+        dbgprint(f"l2_xyz: {l2_xyz.shape}, l2_points: {l2_points.shape}")
+        dbgprint(f"l3_xyz: {l3_xyz.shape}, l3_points: {l3_points.shape}")
+        dbgprint(f"l4_xyz: {l4_xyz.shape}, l4_points: {l4_points.shape}")
+        
         # Feature Propagation layers
         l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points)
+        dbgprint(f"After fp4: l3_points: {l3_points.shape}")
+        
         l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)
+        dbgprint(f"After fp3: l2_points: {l2_points.shape}")
+        
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
+        dbgprint(f"After fp2: l1_points: {l1_points.shape}")
+        
         l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)
+        dbgprint(f"After fp1: l0_points: {l0_points.shape}")
         
         # FC layers
         x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
         x = self.conv2(x)
         x = x.permute(0, 2, 1)  # Convert back to [B, N, num_seg_classes]
         return x
+
 
 
 

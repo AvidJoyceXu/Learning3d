@@ -67,7 +67,10 @@ if __name__ == '__main__':
         model = cls_model(num_classes=args.num_cls_class).to(args.device)
     
     # Load Model Checkpoint
-    model_path = './checkpoints/cls/{}.pt'.format(args.load_checkpoint)
+    if args.model_type == "pointnet2":
+        model_path = './checkpoints/cls_pointnet2/{}.pt'.format(args.load_checkpoint)
+    else:
+        model_path = './checkpoints/cls/{}.pt'.format(args.load_checkpoint)
     with open(model_path, 'rb') as f:
         state_dict = torch.load(f, map_location=args.device)
         model.load_state_dict(state_dict)
@@ -112,7 +115,8 @@ if __name__ == '__main__':
                 title = f"Rotation {angle}° - True: {class_names[true_label]}, Predicted: {class_names[pred]}"
                 save_path = os.path.join(args.output_dir, f"rotation_{angle}_{idx}.png")
                 visualize_point_cloud(points, title, save_path)
-
+        del rotated_data, pred_label, test_label_tensor
+        torch.cuda.empty_cache()
     # Experiment 2: Point Density Analysis
     print("\n=== Experiment 2: Point Density Analysis ===")
     point_densities = [1000, 5000, 10000]  # number of points
