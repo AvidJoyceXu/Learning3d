@@ -5,7 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import torch
 import torch.nn.functional as F
 torch.backends.cudnn.enabled = False
-from models import cls_model
+from models import cls_model, PointNet2ClsSSG
 from utils import create_dir, rotate_point_cloud
 import os
 
@@ -36,6 +36,8 @@ def create_parser():
 
     parser.add_argument('--num_cls_class', type=int, default=3, help='The number of classes')
     parser.add_argument('--num_points', type=int, default=10000, help='The number of points per object to be included in the input data')
+    parser.add_argument('--model_type', type=str, default="pointnet", help='The model type: pointnet or pointnet2')
+    parser.add_argument('--normal_channel', action='store_true', help='Use normal channel for PointNet++')
 
     # Directories and checkpoint/sample iterations
     parser.add_argument('--load_checkpoint', type=str, default='model_epoch_0')
@@ -56,10 +58,13 @@ if __name__ == '__main__':
     args.device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 
     create_dir(args.output_dir)
+    class_names = ['chair', 'vase', 'lamp']
 
     # ------ TO DO: Initialize Model for Classification Task ------
-    model = cls_model(num_classes=args.num_cls_class).to(args.device)
-    class_names = ['chair', 'vase', 'lamp']
+    if args.model_type == "pointnet2":
+        model = PointNet2ClsSSG(num_classes=args.num_cls_class, normal_channel=args.normal_channel).to(args.device)
+    else:
+        model = cls_model(num_classes=args.num_cls_class).to(args.device)
     
     # Load Model Checkpoint
     model_path = './checkpoints/cls/{}.pt'.format(args.load_checkpoint)

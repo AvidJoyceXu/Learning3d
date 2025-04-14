@@ -1,0 +1,2 @@
+# python train.py --task cls --model_type pointnet2 --normal_channel --num_epochs 250 --exp_name cls_pointnet2_normal_channel
+CUDA_VISIBLE_DEVICES=1 python train.py --task seg --model_type pointnet2 --normal_channel --num_epochs 250 --exp_name seg_pointnet2_normal_channel

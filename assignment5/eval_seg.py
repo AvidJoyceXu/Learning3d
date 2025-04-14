@@ -1,7 +1,7 @@
 import numpy as np
 import argparse
 import torch
-from models import seg_model
+from models import seg_model, PointNet2SegSSG
 from data_loader import get_data_loader
 from utils import create_dir, viz_seg, rotate_point_cloud
 import os
@@ -14,6 +14,8 @@ def create_parser():
 
     parser.add_argument('--num_seg_class', type=int, default=6, help='The number of segmentation classes')
     parser.add_argument('--num_points', type=int, default=10000, help='The number of points per object to be included in the input data')
+    parser.add_argument('--model_type', type=str, default="pointnet", help='The model type: pointnet or pointnet2')
+    parser.add_argument('--normal_channel', action='store_true', help='Use normal channel for PointNet++')
 
     # Directories and checkpoint/sample iterations
     parser.add_argument('--load_checkpoint', type=str, default='model_epoch_0')
@@ -41,7 +43,10 @@ if __name__ == '__main__':
     create_dir(args.output_dir)
 
     # ------ TO DO: Initialize Model for Segmentation Task  ------
-    model = seg_model(num_seg_classes=args.num_seg_class).to(args.device)
+    if args.model_type == "pointnet":
+        model = seg_model(num_seg_classes=args.num_seg_class).to(args.device)
+    elif args.model_type == "pointnet2":
+        model = PointNet2SegSSG(num_seg_classes=args.num_seg_class, normal_channel=args.normal_channel).to(args.device)
     
     # Load Model Checkpoint
     model_path = './checkpoints/seg/{}.pt'.format(args.load_checkpoint)

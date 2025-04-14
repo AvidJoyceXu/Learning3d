@@ -4,7 +4,7 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-from models import cls_model, seg_model
+from models import cls_model, seg_model, PointNet2ClsSSG, PointNet2SegSSG
 from data_loader import get_data_loader
 from utils import save_checkpoint, create_dir
 
@@ -101,9 +101,15 @@ def main(args):
 
     # ------ TO DO: Initialize Model ------
     if args.task == "cls":
-        model = cls_model(num_classes=3).to(args.device)
+        if args.model_type == "pointnet2":
+            model = PointNet2ClsSSG(num_classes=3, normal_channel=args.normal_channel).to(args.device)
+        else:
+            model = cls_model(num_classes=3).to(args.device)
     else:
-        model = seg_model(num_seg_classes=args.num_seg_class).to(args.device)
+        if args.model_type == "pointnet2":
+            model = PointNet2SegSSG(num_seg_classes=args.num_seg_class, normal_channel=args.normal_channel).to(args.device)
+        else:
+            model = seg_model(num_seg_classes=args.num_seg_class).to(args.device)
     
     # Load Checkpoint 
     if args.load_checkpoint:
@@ -159,6 +165,8 @@ def create_parser():
     # Model & Data hyper-parameters
     parser.add_argument('--task', type=str, default="cls", help='The task: cls or seg')
     parser.add_argument('--num_seg_class', type=int, default=6, help='The number of segmentation classes')
+    parser.add_argument('--model_type', type=str, default="pointnet", help='The model type: pointnet or pointnet2')
+    parser.add_argument('--normal_channel', action='store_true', help='Use normal channel for PointNet++')
 
     # Training hyper-parameters
     parser.add_argument('--num_epochs', type=int, default=250)
@@ -183,6 +191,6 @@ if __name__ == '__main__':
     parser = create_parser()
     args = parser.parse_args()
     args.device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
-    args.checkpoint_dir = args.checkpoint_dir+"/"+args.task # checkpoint directory is task specific
+    args.checkpoint_dir = args.checkpoint_dir+"/"+args.task + "_" + args.model_type # checkpoint directory is task specific
 
     main(args)
